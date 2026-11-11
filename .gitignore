@@ -1,0 +1,7 @@
+# Solo se publica la app Pincelada. Lo demás de esta carpeta es privado.
+doble-trazo.html
+docs/
+.claude/
+_prueba*
+__pycache__/
+*.pyc

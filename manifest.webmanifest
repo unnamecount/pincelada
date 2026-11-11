@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "Pincelada",
+  "short_name": "Pincelada",
+  "description": "Dibuja y pinta: pinceles, acuarela que mezcla colores, capas, fotos y modo 3D.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2eff1",
+  "theme_color": "#f2eff1",
+  "categories": ["graphics", "art", "productivity"],
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
