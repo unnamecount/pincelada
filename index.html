@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pincelada">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<script>window.PINCELADA_VERSION = "1.0";</script>
+<script>window.PINCELADA_VERSION = "1.1";</script>
 <title>Pincelada</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -241,6 +241,22 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0;font:500 12px/1.5 var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
 .hint3{margin:0;color:var(--muted);font-size:12.5px}
+.btn.small[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.animbar{position:absolute;left:10px;right:10px;bottom:10px;display:flex;align-items:center;gap:4px;background:color-mix(in srgb, var(--surface) 94%, transparent);border:1px solid var(--line);border-radius:14px;padding:5px;box-shadow:0 2px 10px var(--shadow);z-index:2}
+.animbar .ibtn[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.abframes{flex:1 1 auto;min-width:0;display:flex;gap:4px;overflow-x:auto;padding:2px;scrollbar-width:thin}
+.abf{position:relative;flex:0 0 auto;width:56px;height:56px;border:2px solid var(--line);border-radius:9px;background:#fff;padding:0;overflow:hidden;cursor:pointer}
+.abf canvas{position:static;width:100%;height:100%;display:block}
+.abf span{position:absolute;left:2px;bottom:2px;font:600 10px/1 var(--f-mono);background:rgba(0,0,0,.6);color:#fff;border-radius:4px;padding:2px 4px}
+.abf.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.abf.play{border-color:var(--ink)}
+.abpose{flex:0 0 auto;min-width:46px;height:46px;border-radius:10px;border:2px solid var(--line);background:var(--surface-2);font:600 13px/1 var(--f-mono);color:var(--ink);cursor:pointer}
+.abpose.on{border-color:var(--accent);color:var(--accent)}
+.abpose.play{border-color:var(--ink)}
+.abtxt{font:500 11.5px/1.25 var(--f-mono);color:var(--muted);white-space:nowrap;padding:0 4px;text-align:center}
+.abempty{color:var(--muted);font-size:12.5px;padding:0 8px;white-space:normal}
+.stage.anim .zoombox{bottom:calc(var(--abh, 78px) + 10px)}
+.stage.anim .toast{bottom:calc(var(--abh, 78px) + 22px)}
 
 @media (max-width: 820px){
   .editor{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "stage" "tools";gap:6px;padding-block:6px}
@@ -267,6 +283,19 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   .etop .btn.small{padding:6px 7px}
   #bExport{font-size:12px}
   .docname{flex:1 1 0;width:0}
+  .abtxt{display:none}
+  .abf{width:48px;height:48px}
+  .animbar{flex-wrap:wrap;justify-content:space-between;row-gap:4px}
+  .animbar .abframes{order:-1;flex:1 1 100%}
+  .animbar .ibtn{width:32px}
+}
+@media (max-width: 400px){
+  .etop{gap:1px}
+  .etop .ibtn{width:28px}
+  .etop .btn.small{padding:6px 5px}
+  .seg.mode button{padding:7px 6px}
+  #bExport{padding:6px 8px}
+  .docname{display:none}
 }
 </style>
 
@@ -311,6 +340,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="seg mode" id="modeSeg" aria-label="Modo"><button data-m="2d" aria-pressed="true" title="Dibujo">2D</button><button data-m="3d" aria-pressed="false" title="Escena 3D">3D</button></div>
     <button class="ibtn" id="bUndo" title="Deshacer (Ctrl+Z · dos dedos)"></button>
     <button class="ibtn" id="bRedo" title="Rehacer (Ctrl+Y · tres dedos)"></button>
+    <button class="btn small" id="bAnim" title="Animación" aria-label="Animación" aria-pressed="false"></button>
     <button class="btn small" id="bAdjust" title="Tono, saturación, brillo, desenfoque…" aria-label="Ajustes de color"></button>
     <button class="btn small" id="bCanvasMenu" title="Voltear, girar y fondo" aria-label="Lienzo"></button>
     <button class="btn small primary" id="bExport">Exportar</button>
@@ -342,6 +372,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <button class="ibtn" id="bRotReset" title="Enderezar la vista"></button>
       <button class="zv" id="bFit" title="Ajustar a la pantalla (0)">100 %</button>
     </div>
+    <div class="animbar" id="animBar" hidden aria-label="Línea de tiempo"></div>
     <div class="ctxbar" id="ctxBar" hidden></div>
     <textarea class="texted" id="textEd" hidden spellcheck="false" aria-label="Texto"></textarea>
     <div class="toast" id="toast" hidden></div>
@@ -427,7 +458,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="deTitle">
     <h3 id="deTitle">Exportar</h3>
     <div class="field">Formato
-      <div class="seg" id="eFmt"><button data-f="png" aria-pressed="true">PNG</button><button data-f="jpg" aria-pressed="false">JPG</button></div>
+      <div class="seg" id="eFmt"><button data-f="png" aria-pressed="true">PNG</button><button data-f="jpg" aria-pressed="false">JPG</button><button data-f="gif" aria-pressed="false" id="eFmtGif">GIF animado</button><button data-f="video" aria-pressed="false" id="eFmtVid">Vídeo</button></div>
+    </div>
+    <div class="field" id="eLoopsWrap" hidden>Repetir la animación
+      <div class="seg" id="eLoops"><button data-v="1" aria-pressed="true">1 vez</button><button data-v="3" aria-pressed="false">3 veces</button><button data-v="5" aria-pressed="false">5 veces</button></div>
     </div>
     <div class="field">Tamaño
       <div class="seg" id="eScale"><button data-s="0.5" aria-pressed="false">50 %</button><button data-s="1" aria-pressed="true">100 %</button><button data-s="2" aria-pressed="false">200 %</button></div>
@@ -449,6 +483,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <label class="check"><input type="checkbox" id="aInvert"> Invertir</label>
       <label class="check"><input type="checkbox" id="aGray"> Blanco y negro</label>
       <label class="check"><input type="checkbox" id="aSepia"> Sepia</label>
+    </div>
+    <div class="field">Filtros (se aplican al momento; se pueden deshacer)
+      <div class="grid2" id="aFilters"></div>
     </div>
     <div class="actions"><button class="btn" id="aReset">Restablecer</button><button class="btn" data-close>Cancelar</button><button class="btn primary" id="aApply">Aplicar</button></div>
   </div>
@@ -477,6 +514,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <div class="seg" id="cBg"><button data-bg="#ffffff">Blanco</button><button data-bg="transparent">Transparente</button><button data-bg="color">Color actual</button></div>
     </div>
     <div class="actions"><button class="btn primary" data-close>Listo</button></div>
+  </div>
+</div>
+
+<div class="modal" id="dlgAnim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dzTitle">
+    <h3 id="dzTitle">Animación</h3>
+    <div id="dzBody" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="actions"><button class="btn" id="dzOff">Salir de animación</button><button class="btn primary" data-close>Listo</button></div>
   </div>
 </div>
 
@@ -547,19 +592,28 @@ const ICONS = {
   p_toro:'<ellipse cx="12" cy="12" rx="9" ry="5"/><ellipse cx="12" cy="11.5" rx="3.5" ry="1.6"/>',
   p_gema:'<path d="M12 3l8 6-8 12-8-12z"/><path d="M4 9h16M12 3l-3 6 3 12 3-12z"/>',
   p_plano:'<path d="M3 15l9-5 9 5-9 5z"/>',
-  p_figura:'<circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M8 9.5h8M12 14l-3 7M12 14l3 7"/>'
+  p_figura:'<circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M8 9.5h8M12 14l-3 7M12 14l3 7"/>',
+  gradient:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16" opacity=".25"/><path d="M12 4v16" opacity=".5"/><path d="M16 4v16" opacity=".8"/>',
+  filter:'<circle cx="9" cy="9" r="5"/><circle cx="15" cy="9" r="5" opacity=".6"/><circle cx="12" cy="15" r="5" opacity=".35"/>',
+  film:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 5v14M16.5 5v14M3 9.5h4.5M3 14.5h4.5M16.5 9.5H21M16.5 14.5H21"/>',
+  play:'<path d="M8 5l11 7-11 7z"/>',
+  pause:'<path d="M8.5 5v14M15.5 5v14"/>',
+  onion:'<circle cx="9" cy="12" r="6" opacity=".4"/><circle cx="15" cy="12" r="6"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  left:'<path d="M14 6l-6 6 6 6"/>',
+  right:'<path d="M10 6l6 6-6 6"/>'
 };
 const ico = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 
 /* ---------- Herramientas y ajustes ---------- */
 const TOOLS = [
   {id:'brush', name:'Pincel', key:'B'}, {id:'eraser', name:'Borrador', key:'E'}, {id:'smudge', name:'Difuminar', key:'S'},
-  {id:'blur', name:'Desenfocar', key:'J'}, {id:'fill', name:'Bote de pintura', key:'G'}, {id:'picker', name:'Cuentagotas', key:'I'},
+  {id:'blur', name:'Desenfocar', key:'J'}, {id:'fill', name:'Bote de pintura', key:'G'}, {id:'gradient', name:'Degradado', key:'D'}, {id:'picker', name:'Cuentagotas', key:'I'},
   {sep:true},
   {id:'select', name:'Selección', key:'M'}, {id:'move', name:'Mover y transformar', key:'V'}, {id:'shape', name:'Formas', key:'U'},
   {id:'text', name:'Texto', key:'T'}, {id:'hand', name:'Mano (mover la vista)', key:'H'}
 ];
-const BRUSH_GROUPS = [['lapices','Lápices'],['tinta','Tinta y rotuladores'],['pinceles','Pinceles'],['mezcla','Acuarela y mezcla (los colores se mezclan)'],['efectos','Efectos']];
+const BRUSH_GROUPS = [['lapices','Lápices'],['tinta','Tinta y rotuladores'],['pinceles','Pinceles'],['mezcla','Acuarela y mezcla (los colores se mezclan)'],['efectos','Efectos'],['decorar','Decoración (sellos)'],['tramas','Tramas de cómic']];
 const BRUSHES = [
   {id:'lapiz_hb', g:'lapices', name:'Lápiz HB', size:3, opacity:65, flow:.45, hard:.75, spacing:.1, psize:true, popac:true, grain:true, taper:true},
   {id:'lapiz', g:'lapices', name:'Lápiz 2B', size:4, opacity:85, flow:.5, hard:.55, spacing:.1, psize:true, popac:true, grain:true, taper:true},
@@ -587,7 +641,39 @@ const BRUSHES = [
   {id:'mezclador', g:'mezcla', name:'Mezclador', size:40, opacity:70, hard:.35, spacing:.07, psize:true, popac:true, wet:true, noPaint:true, mix:100, water:0},
   {id:'salpicadura', g:'efectos', name:'Salpicadura', size:80, opacity:100, flow:1, hard:1, spacing:.4, psize:false, popac:false, scatter:12},
   {id:'nubes', g:'efectos', name:'Nubes', size:140, opacity:40, flow:.25, hard:0, spacing:.25, psize:false, popac:false, scatter:3},
-  {id:'brillo', g:'efectos', name:'Brillo', size:60, opacity:100, flow:.5, hard:0, spacing:.08, psize:true, popac:true, glow:true}
+  {id:'brillo', g:'efectos', name:'Brillo', size:60, opacity:100, flow:.5, hard:0, spacing:.08, psize:true, popac:true, glow:true},
+  // Más lápices, tintas y pinceles
+  {id:'carboncillo', g:'lapices', name:'Carboncillo', size:18, opacity:85, flow:.8, hard:.5, spacing:.06, psize:true, popac:true, grain:true, coarse:true},
+  {id:'pastel', g:'lapices', name:'Pastel', size:28, opacity:75, flow:.7, hard:.35, spacing:.06, psize:false, popac:true, grain:true, coarse:true},
+  {id:'lapiz_arcoiris', g:'lapices', name:'Lápiz arcoíris', size:6, opacity:95, flow:.9, hard:.6, spacing:.08, psize:true, popac:true, grain:true, rainbow:true},
+  {id:'plumilla_g', g:'tinta', name:'Plumilla G', size:8, opacity:100, flow:1, hard:1, spacing:.04, psize:true, popac:false, thin:true, taper:true},
+  {id:'pincel_tinta', g:'tinta', name:'Pincel de tinta', size:18, opacity:100, flow:1, hard:.92, spacing:.04, psize:true, popac:false, thin:true, taper:true},
+  {id:'boligrafo', g:'tinta', name:'Bolígrafo', size:3, opacity:95, flow:1, hard:.9, spacing:.1, psize:false, popac:true},
+  {id:'desvanecer', g:'tinta', name:'Pluma que se desvanece', size:10, opacity:100, flow:1, hard:.9, spacing:.05, psize:true, popac:false, fade:30},
+  {id:'rotulador_arcoiris', g:'tinta', name:'Rotulador arcoíris', size:16, opacity:100, flow:1, hard:.95, spacing:.06, psize:false, popac:false, rainbow:true},
+  {id:'cinta', g:'tinta', name:'Cinta', size:26, opacity:100, flow:1, hard:1, spacing:.03, psize:true, popac:false, flat:true, angle:90, follow:true},
+  {id:'acrilico', g:'mezcla', name:'Acrílico', size:32, opacity:100, hard:.9, spacing:.05, psize:true, popac:false, wet:true, bristle:true, mix:25, water:0},
+  {id:'acuarela_seca', g:'mezcla', name:'Acuarela seca', size:40, opacity:28, hard:.6, spacing:.05, psize:true, popac:true, wet:true, edge:true, mix:30, water:15},
+  {id:'mezclador_suave', g:'mezcla', name:'Mezclador suave', size:70, opacity:45, hard:.1, spacing:.06, psize:true, popac:true, wet:true, noPaint:true, mix:100, water:0},
+  {id:'textura', g:'pinceles', name:'Pincel con textura', size:40, opacity:90, flow:.8, hard:.5, spacing:.05, psize:true, popac:true, grain:true},
+  {id:'esponja', g:'pinceles', name:'Esponja', size:60, opacity:70, flow:.5, hard:.4, spacing:.18, psize:false, popac:true, scatter:6},
+  {id:'aero_duro', g:'pinceles', name:'Aerógrafo duro', size:60, opacity:100, flow:.12, hard:.7, spacing:.05, psize:false, popac:true},
+  {id:'spray', g:'pinceles', name:'Spray', size:70, opacity:100, flow:1, hard:1, spacing:.12, psize:false, popac:false, scatter:30, tiny:true},
+  {id:'purpurina', g:'efectos', name:'Purpurina', size:50, opacity:100, flow:1, hard:.8, spacing:.2, psize:false, popac:false, scatter:14, tiny:true, lightJ:.6, hueJ:.08},
+  // Sellos: cada toque deja una forma
+  {id:'estrellas', g:'decorar', name:'Estrellas', size:40, opacity:100, flow:1, hard:1, spacing:1.1, psize:false, popac:false, shape:'star', jSize:.5, jAngle:180, jPos:.6},
+  {id:'corazones', g:'decorar', name:'Corazones', size:36, opacity:100, flow:1, hard:1, spacing:1.2, psize:false, popac:false, shape:'heart', jSize:.45, jAngle:25, jPos:.5},
+  {id:'destellos', g:'decorar', name:'Destellos', size:40, opacity:100, flow:1, hard:1, spacing:1.3, psize:false, popac:false, shape:'sparkle', jSize:.6, jPos:.8},
+  {id:'burbujas', g:'decorar', name:'Burbujas', size:44, opacity:85, flow:1, hard:1, spacing:1.2, psize:false, popac:false, shape:'ring', jSize:.7, jPos:.8},
+  {id:'confeti', g:'decorar', name:'Confeti', size:22, opacity:100, flow:1, hard:1, spacing:.9, psize:false, popac:false, shape:'square', hueJ:1, jAngle:180, jSize:.5, jPos:1.2, count:3},
+  {id:'nieve', g:'decorar', name:'Nieve', size:16, opacity:90, flow:1, hard:.3, spacing:.8, psize:false, popac:false, shape:'dot', jSize:.7, jPos:1.5, count:3},
+  {id:'flores', g:'decorar', name:'Flores', size:44, opacity:100, flow:1, hard:1, spacing:1.2, psize:false, popac:false, shape:'flower', jSize:.4, jAngle:180, hueJ:.12},
+  {id:'hojas', g:'decorar', name:'Hojas', size:36, opacity:100, flow:1, hard:1, spacing:.9, psize:false, popac:false, shape:'leaf', follow:true, jAngle:40, jSize:.4, lightJ:.3},
+  {id:'hierba', g:'decorar', name:'Hierba', size:40, opacity:100, flow:1, hard:1, spacing:.35, psize:false, popac:false, shape:'blade', jAngle:22, jSize:.5, jPos:.4, count:2, lightJ:.35},
+  {id:'puntos', g:'decorar', name:'Lunares', size:18, opacity:100, flow:1, hard:1, spacing:1.7, psize:false, popac:false, shape:'dot'},
+  {id:'trama_puntos', g:'tramas', name:'Trama de puntos', size:80, opacity:100, flow:1, hard:.95, spacing:.06, psize:false, popac:false, tone:'dots'},
+  {id:'trama_lineas', g:'tramas', name:'Trama de líneas', size:80, opacity:100, flow:1, hard:.95, spacing:.06, psize:false, popac:false, tone:'lines'},
+  {id:'trama_cruzada', g:'tramas', name:'Trama cruzada', size:80, opacity:100, flow:1, hard:.95, spacing:.06, psize:false, popac:false, tone:'cross'}
 ];
 const ERASERS = [
   {id:'goma_dura', name:'Goma dura', size:30, opacity:100, hard:.9, flow:1, spacing:.06, psize:true, popac:false},
@@ -608,8 +694,8 @@ const S = {
   brushes:Object.fromEntries(BRUSHES.map(b => [b.id, b.wet ? {size:b.size, opacity:b.opacity, mix:b.mix, water:b.water} : {size:b.size, opacity:b.opacity}])),
   erasers:Object.fromEntries(ERASERS.map(b => [b.id, {size:b.size, opacity:b.opacity, hard:b.hard}])),
   smudge:{size:40, opacity:60}, blur:{size:50, opacity:70},
-  stab:3, pressure:true, sym:{mode:'none', n:6},
-  fill:{tol:32, ref:'capa', grow:1}, sel:{mode:'rect', tol:32}, shape:{kind:'rect', filled:false}, text:{font:'Inter', size:72, bold:false},
+  stab:3, pressure:true, sym:{mode:'none', n:6}, taperIn:0, grad:{kind:'linear', to:'transp'},
+  fill:{tol:32, ref:'capa', grow:1, mode:'bote'}, sel:{mode:'rect', tol:32}, shape:{kind:'rect', filled:false}, text:{font:'Inter', size:72, bold:false},
   pickRef:'lienzo', recent:[], palettes:[{name:'Mi paleta', colors:PALETTE.slice()}], palIdx:0, palT:0
 };
 function cleanPalettes(list){
@@ -628,12 +714,13 @@ function applyPrefs(saved){
   if (saved.palT) S.palT = saved.palT;
   if (Array.isArray(saved.recent)) S.recent = saved.recent;
   if (saved.stab != null) S.stab = saved.stab;
+  if (saved.taperIn != null) S.taperIn = clamp(+saved.taperIn || 0, 0, 100);
   if (saved.brushId && BRUSHES.some(b => b.id === saved.brushId)) S.brushId = saved.brushId;
   if (saved.eraserId && S.erasers[saved.eraserId]) S.eraserId = saved.eraserId;
 }
 try { applyPrefs(JSON.parse(localStorage.getItem('pincelada.prefs') || 'null')); } catch (e) {}
 Object.defineProperty(S, 'eraser', {get(){ return S.erasers[S.eraserId]; }});
-const prefsData = () => ({brushes:S.brushes, erasers:S.erasers, palettes:S.palettes, palIdx:S.palIdx, palT:S.palT, recent:S.recent, stab:S.stab, brushId:S.brushId, eraserId:S.eraserId});
+const prefsData = () => ({brushes:S.brushes, erasers:S.erasers, palettes:S.palettes, palIdx:S.palIdx, palT:S.palT, recent:S.recent, stab:S.stab, taperIn:S.taperIn, brushId:S.brushId, eraserId:S.eraserId});
 let _prefsT = 0;
 // palChanged: la paleta cambió y también se guarda en la cuenta
 function savePrefs(palChanged){
@@ -666,9 +753,11 @@ function setupWork(){
   C.compCtx = C.comp.getContext('2d');
 }
 function openDoc(d){
+  stopPlay();
   doc = d; W = d.w; H = d.h;
   setupWork();
   sel = null; live = null; ST = null;
+  stage.classList.toggle('anim', animOn()); $('#animBar').hidden = !animOn(); $('#bAnim').setAttribute('aria-pressed', animOn());
   hist.undo = []; hist.redo = []; hist.bytes = 0;
   $('#docName').value = d.name;
   if (S.mode === '3d') setMode('2d');
@@ -696,9 +785,10 @@ new ResizeObserver(() => { resizeView(); }).observe(stage);
 function fitView(){
   if (!doc) return;
   V.rot = 0; V.user = false;
-  V.z = Math.min((V.w - 90)/W, (V.h - 70)/H);
+  const bh = animBarH();
+  V.z = Math.min((V.w - 90)/W, (V.h - 70 - bh)/H);
   if (!isFinite(V.z) || V.z <= 0) V.z = 0.2;
-  V.px = V.w/2 + 20; V.py = V.h/2;
+  V.px = V.w/2 + 20; V.py = (V.h - bh)/2;
   updateZoomUI(); needRender();
 }
 function d2s(x, y){
@@ -759,9 +849,28 @@ function layerSource(L){
   return w;
 }
 function drawLayerTo(g, src, alpha, blend){ g.globalAlpha = alpha; g.globalCompositeOperation = blend; g.drawImage(src, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
-function compose(){
-  const g = C.compCtx, L = doc.layers;
+// clean: sin papel cebolla (para exportar y miniaturas)
+function compose(clean){
+  const g = C.compCtx;
   g.clearRect(0, 0, W, H);
+  if (!animOn()){ composeLayers(g, doc.layers); return; }
+  const fr = frames(), cf = A.playing ? fr[A.playI % fr.length] : curFrame(), fx = animFixed();
+  if (fx.bg) composeLayers(g, [fx.bg]);
+  if (!clean && !A.playing && cf){
+    const i = fr.indexOf(cf);
+    for (let k = doc.anim.onion; k >= 1; k--) if (fr[i - k]) onionDraw(g, fr[i - k], '#e8473f', 0.34/k);
+    if (doc.anim.next && fr[i + 1]) onionDraw(g, fr[i + 1], '#2f7fe0', 0.3);
+  }
+  if (cf) composeLayers(g, [cf]);
+  if (fx.fg) composeLayers(g, [fx.fg]);
+}
+function onionDraw(g, L, color, alpha){
+  if (!L.visible) return;
+  const t = C.clipT.getContext('2d'); t.clearRect(0, 0, W, H);
+  t.drawImage(L.canvas, 0, 0); t.globalCompositeOperation = 'source-in'; t.fillStyle = color; t.fillRect(0, 0, W, H); t.globalCompositeOperation = 'source-over';
+  drawLayerTo(g, C.clipT, alpha, 'source-over');
+}
+function composeLayers(g, L){
   let i = 0;
   while (i < L.length){
     const base = L[i]; let j = i + 1; const clips = [];
@@ -822,7 +931,12 @@ function drawUI(){
   }
   if (selDraft){
     g.lineWidth = 1.5/V.z; g.strokeStyle = cssVar('--accent'); g.setLineDash([5/V.z, 4/V.z]);
-    g.beginPath(); selDraft.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); if (S.sel.mode === 'rect') g.closePath(); g.stroke(); g.setLineDash([]);
+    g.beginPath(); selDraft.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); if (S.sel.mode === 'rect' && S.tool === 'select') g.closePath(); g.stroke(); g.setLineDash([]);
+  }
+  if (gradLine){
+    const [a, b] = gradLine; g.lineWidth = 2/V.z; g.setLineDash([]);
+    [['rgba(0,0,0,.5)', 3.5], ['#fff', 2]].forEach(([c, w]) => { g.strokeStyle = c; g.lineWidth = w/V.z; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke(); });
+    [a, b].forEach(q => { g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1.5/V.z; g.beginPath(); g.arc(q.x, q.y, 5/V.z, 0, Math.PI*2); g.fill(); g.stroke(); });
   }
   if (S.sym.mode !== 'none' && ['brush','eraser','shape'].includes(S.tool)){
     g.strokeStyle = 'rgba(207,51,107,.55)'; g.lineWidth = 1.5/V.z; g.setLineDash([8/V.z, 6/V.z]);
@@ -983,6 +1097,8 @@ function makeDab(def, sizePx, color){
     const grd = g.createRadialGradient(r, r, 0, r, r, r);
     grd.addColorStop(0, '#ffffff'); grd.addColorStop(.12, hexA('#ffffff', .9)); grd.addColorStop(.3, hexA(color, .55)); grd.addColorStop(1, hexA(color, 0));
     g.fillStyle = grd; g.fillRect(0, 0, s, s);
+  } else if (def.shape && def.shape !== 'dot'){
+    g.translate(r, r); g.fillStyle = g.strokeStyle = color; drawShape(g, def.shape, r*0.96);
   } else if (def.flat){
     g.translate(r, r); g.rotate(def.angle*Math.PI/180); g.fillStyle = color;
     g.beginPath(); g.ellipse(0, 0, r, r*0.22, 0, 0, Math.PI*2); g.fill();
@@ -997,6 +1113,59 @@ function makeDab(def, sizePx, color){
   dabCache.set(key, c); return c;
 }
 function hexA(hex, a){ const n = parseInt(hex.slice(1), 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+// Formas de los pinceles sello, centradas en 0,0 y de radio r
+function drawShape(g, kind, r){
+  g.beginPath();
+  if (kind === 'star'){
+    for (let i = 0; i < 10; i++){ const a = -Math.PI/2 + i*Math.PI/5, d = i % 2 ? r*0.45 : r; g.lineTo(Math.cos(a)*d, Math.sin(a)*d); }
+    g.closePath(); g.fill();
+  } else if (kind === 'heart'){
+    g.moveTo(0, r*0.85);
+    g.bezierCurveTo(-r*1.25, r*0.05, -r*0.75, -r*0.95, 0, -r*0.4);
+    g.bezierCurveTo(r*0.75, -r*0.95, r*1.25, r*0.05, 0, r*0.85);
+    g.fill();
+  } else if (kind === 'sparkle'){
+    const k = r*0.12;
+    g.moveTo(0, -r); g.quadraticCurveTo(k, -k, r, 0); g.quadraticCurveTo(k, k, 0, r); g.quadraticCurveTo(-k, k, -r, 0); g.quadraticCurveTo(-k, -k, 0, -r);
+    g.fill();
+  } else if (kind === 'ring'){
+    g.lineWidth = r*0.14; g.arc(0, 0, r*0.86, 0, Math.PI*2); g.stroke();
+    g.globalAlpha = 0.18; g.beginPath(); g.arc(0, 0, r*0.8, 0, Math.PI*2); g.fill();
+    g.globalAlpha = 0.9; g.beginPath(); g.ellipse(-r*0.36, -r*0.38, r*0.16, r*0.09, -0.7, 0, Math.PI*2); g.fill(); g.globalAlpha = 1;
+  } else if (kind === 'square'){
+    g.rect(-r*0.7, -r*0.45, r*1.4, r*0.9); g.fill();
+  } else if (kind === 'flower'){
+    for (let i = 0; i < 5; i++){ const a = i*Math.PI*2/5; g.moveTo(0, 0); g.ellipse(Math.cos(a)*r*0.5, Math.sin(a)*r*0.5, r*0.48, r*0.3, a, 0, Math.PI*2); }
+    g.fill();
+    g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(0, 0, r*0.2, 0, Math.PI*2); g.fill();
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 0.55; g.beginPath(); g.arc(0, 0, r*0.2, 0, Math.PI*2); g.fill(); g.globalAlpha = 1;
+  } else if (kind === 'leaf'){
+    g.moveTo(-r, 0); g.quadraticCurveTo(-r*0.1, -r*0.62, r, 0); g.quadraticCurveTo(-r*0.1, r*0.62, -r, 0); g.fill();
+    g.globalCompositeOperation = 'destination-out'; g.lineWidth = Math.max(1, r*0.06); g.beginPath(); g.moveTo(-r*0.8, 0); g.lineTo(r*0.75, 0); g.stroke(); g.globalCompositeOperation = 'source-over';
+  } else if (kind === 'blade'){
+    g.moveTo(-r*0.16, r); g.quadraticCurveTo(-r*0.12, -r*0.1, r*0.1, -r); g.quadraticCurveTo(r*0.04, -r*0.1, r*0.16, r); g.closePath(); g.fill();
+  }
+}
+// Color de cada toque: arcoíris, variación de tono o de luz
+function dabColor(def){
+  if (!def.rainbow && !def.hueJ && !def.lightJ) return S.color;
+  let [h, s, v] = rgbToHsv(...hexToRgb(S.color));
+  if ((def.rainbow || def.hueJ >= 0.5) && s < 0.25){ s = 0.75; v = Math.max(v, 0.88); }
+  if (def.rainbow) h += ST.dist*0.5;
+  if (def.hueJ) h += (Math.random() - 0.5)*2*def.hueJ*180;
+  if (def.lightJ) v = clamp(v*(1 - def.lightJ/2) + Math.random()*def.lightJ*0.6, 0, 1);
+  h = ((Math.round(h/10)*10) % 360 + 360) % 360; v = Math.round(v*10)/10;
+  return rgbToHex(...hsvToRgb(h, s, v));
+}
+const _tones = {};
+function tonePattern(g, kind){
+  if (_tones[kind]) return _tones[kind];
+  const n = 8, c = mk(n, n), x = c.getContext('2d'); x.fillStyle = '#000';
+  if (kind === 'dots'){ x.beginPath(); x.arc(n/2, n/2, 2.1, 0, Math.PI*2); x.fill(); }
+  else if (kind === 'lines'){ x.fillRect(0, 3, n, 2); }
+  else { x.fillRect(0, 3, n, 1.5); x.fillRect(3, 0, 1.5, n); }
+  return _tones[kind] = g.createPattern(c, 'repeat');
+}
 function symPoints(x, y){
   const m = S.sym.mode, cx = W/2, cy = H/2;
   if (m === 'v') return [[x, y, 1], [2*cx - x, y, -1]];
@@ -1020,7 +1189,7 @@ function beginStroke(p, e){
         smooth:{x:p.x, y:p.y, p:p.p}, raw:p, pen:e.pointerType === 'pen', prev:null, load:null};
   if (def.wet){ live = null; }
   else if (t === 'brush' || t === 'eraser'){
-    live = {kind:'stroke', layer:L, alpha:set.opacity/100, op:t === 'eraser' ? 'destination-out' : (L.lockAlpha ? 'source-atop' : 'source-over'), grain:!!def.grain, coarse:!!def.coarse};
+    live = {kind:'stroke', layer:L, alpha:set.opacity/100, op:t === 'eraser' ? 'destination-out' : (L.lockAlpha ? 'source-atop' : 'source-over'), grain:!!def.grain, coarse:!!def.coarse, tone:t === 'brush' ? def.tone || null : null};
   }
   strokeTo(p.x, p.y, p.p);
 }
@@ -1037,6 +1206,7 @@ function strokeTo(x, y, p){
   if (d < 0.01) return;
   const set = ST.set, def = ST.def;
   const step = Math.max(def.pixel ? 0.5 : 0.35, set.size*(def.spacing || .08)*(def.psize ? Math.max(.25, (a.p + p)/2) : 1));
+  ST.dir = Math.atan2(dy, dx);
   let t = ST.rem > 0 ? ST.rem : step;
   while (t <= d){ const f = t/d; dabAt(a.x + dx*f, a.y + dy*f, a.p + (p - a.p)*f); t += step; }
   ST.rem = t - d; ST.dist += d; ST.last = {x, y, p};
@@ -1045,6 +1215,7 @@ function strokeTo(x, y, p){
 function pressureOf(p){
   let pr = (S.pressure && ST.pen) ? clamp(p, 0.02, 1) : 1;
   if (ST.def.taper && !ST.pen){ pr *= clamp(0.2 + ST.dist/(Math.max(8, ST.set.size)*4), 0.2, 1); }
+  if (S.taperIn > 0 && ST.tool === 'brush'){ pr *= clamp(0.12 + ST.dist/(Math.max(6, ST.set.size)*S.taperIn*0.1), 0.12, 1); }
   return pr;
 }
 function dabAt(x, y, p){
@@ -1060,23 +1231,42 @@ function dabAt(x, y, p){
     grow(x, y, s); return;
   }
   const scale = def.psize ? (def.thin ? 0.08 + 0.92*pr : 0.15 + 0.85*pr) : 1;
-  const size = Math.max(1, set.size*scale);
-  const alpha = (def.flow ?? 1)*(def.popac ? (0.1 + 0.9*pr) : 1);
-  const dab = makeDab(def, set.size, t === 'eraser' ? '#000000' : S.color);
+  const fk = def.fade ? Math.max(0, 1 - ST.dist/(Math.max(4, set.size)*def.fade)) : 1;
+  if (fk <= 0) return;
+  const size = Math.max(1, set.size*scale*(def.fade ? 0.15 + 0.85*fk : 1));
+  let alpha = (def.flow ?? 1)*(def.popac ? (0.1 + 0.9*pr) : 1)*(def.fade ? fk*fk*fk : 1);
+  if (alpha <= 0.002) return;
+  const isEr = t === 'eraser', vary = !isEr && (def.rainbow || def.hueJ || def.lightJ);
+  const dab = makeDab(def, set.size, isEr ? '#000000' : dabColor(def));
   if (def.scatter){
     g.globalAlpha = clamp(alpha, 0, 1);
     symPoints(x, y).forEach(([sx, sy]) => {
       for (let k = 0; k < def.scatter; k++){
-        const a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*size/2, s = size*(0.06 + Math.random()*Math.random()*0.3);
-        g.drawImage(dab, sx + Math.cos(a)*d - s/2, sy + Math.sin(a)*d - s/2, s, s);
+        const a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*size/2, s = def.tiny ? Math.max(1, size*(0.02 + Math.random()*0.05)) : size*(0.06 + Math.random()*Math.random()*0.3);
+        g.drawImage(vary ? makeDab(def, set.size, dabColor(def)) : dab, sx + Math.cos(a)*d - s/2, sy + Math.sin(a)*d - s/2, s, s);
       }
     });
     g.globalAlpha = 1; grow(x, y, size*1.2); return;
   }
+  if (def.shape){
+    // Sellos: tamaño, giro, posición y color un poco al azar en cada toque
+    const n = def.count || 1, jp = def.jPos || 0;
+    g.globalAlpha = clamp(alpha, 0, 1);
+    symPoints(x, y).forEach(([sx, sy, fl, rot]) => {
+      for (let k = 0; k < n; k++){
+        const sz = size*(1 - (def.jSize || 0)*Math.random()), a = Math.random()*Math.PI*2, d = Math.random()*jp*size;
+        const ang = (rot || 0) + (def.follow ? (ST.dir || 0)*fl : 0) + (def.jAngle ? (Math.random() - 0.5)*2*def.jAngle*Math.PI/180 : 0);
+        const im = vary && (k > 0 || n > 1) ? makeDab(def, set.size, dabColor(def)) : dab;
+        g.save(); g.translate(sx + Math.cos(a)*d, sy + Math.sin(a)*d); if (ang) g.rotate(ang); if (fl < 0) g.scale(-1, 1);
+        g.drawImage(im, -sz/2, -sz/2, sz, sz); g.restore();
+      }
+    });
+    g.globalAlpha = 1; grow(x, y, size*(1 + 2*jp) + 4); return;
+  }
   g.globalAlpha = clamp(alpha, 0, 1);
   symPoints(x, y).forEach(([sx, sy, fl, rot]) => {
-    if (def.flat && (fl < 0 || rot)){
-      g.save(); g.translate(sx, sy); if (rot) g.rotate(rot); g.scale(fl, 1); g.drawImage(dab, -size/2, -size/2, size, size); g.restore();
+    if (def.flat && (fl < 0 || rot || def.follow)){
+      g.save(); g.translate(sx, sy); const ang = (rot || 0) + (def.follow ? (ST.dir || 0)*fl : 0); if (ang) g.rotate(ang); g.scale(fl, 1); g.drawImage(dab, -size/2, -size/2, size, size); g.restore();
     } else g.drawImage(dab, sx - size/2, sy - size/2, size, size);
   });
   g.globalAlpha = 1;
@@ -1165,9 +1355,10 @@ function directDab(x, y, r){
   needCompose();
 }
 function preparedStroke(){
-  if (!sel && !live.grain) return C.stroke;
+  if (!sel && !live.grain && !live.tone) return C.stroke;
   const m = C.masked.getContext('2d');
   m.globalCompositeOperation = 'source-over'; m.clearRect(0, 0, W, H); m.drawImage(C.stroke, 0, 0);
+  if (live.tone){ m.globalCompositeOperation = 'destination-in'; m.fillStyle = tonePattern(m, live.tone); m.fillRect(0, 0, W, H); }
   if (live.grain){
     if (!grainPattern) grainPattern = m.createPattern(grainCanvas(), 'repeat');
     m.globalCompositeOperation = 'destination-out'; m.fillStyle = grainPattern;
@@ -1219,6 +1410,28 @@ function shapeDraw(a, b, shift){
     bb[0] = Math.min(bb[0], p[0] - r, q[0] - r); bb[1] = Math.min(bb[1], p[1] - r, q[1] - r); bb[2] = Math.max(bb[2], p[0] + r, q[0] + r); bb[3] = Math.max(bb[3], p[1] + r, q[1] + r);
   });
   needCompose();
+}
+
+/* ---------- Degradado y relleno con lazo ---------- */
+let gradLine = null;
+function drawGradient(a, b){
+  const g = C.stroke.getContext('2d'); g.clearRect(0, 0, W, H);
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  gradLine = [a, b];
+  if (len < 1){ needCompose(); return; }
+  const c2 = S.grad.to === 'transp' ? hexA(S.color, 0) : (S.recent.find(c => c !== S.color) || '#ffffff');
+  const gr = S.grad.kind === 'radial' ? g.createRadialGradient(a.x, a.y, 0, a.x, a.y, len) : g.createLinearGradient(a.x, a.y, b.x, b.y);
+  gr.addColorStop(0, S.color); gr.addColorStop(1, c2);
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  needCompose();
+}
+function lassoFill(pts){
+  const L = act(), m = polyMask(pts), g = m.getContext('2d');
+  g.globalCompositeOperation = 'source-in'; g.fillStyle = S.color; g.fillRect(0, 0, W, H);
+  if (sel){ g.globalCompositeOperation = 'destination-in'; g.drawImage(sel.mask, 0, 0); }
+  const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+  editLayer(L, x => { x.save(); if (L.lockAlpha) x.globalCompositeOperation = 'source-atop'; x.drawImage(m, 0, 0); x.restore(); }, [Math.min(...xs) - 2, Math.min(...ys) - 2, Math.max(...xs) + 2, Math.max(...ys) + 2]);
+  addRecent(S.color); renderLayers();
 }
 
 /* ---------- Bote de pintura, varita y cuentagotas ---------- */
@@ -1538,7 +1751,8 @@ function moveGesture(){
 }
 function abortToolDrag(){
   if (ST) cancelStroke();
-  if (toolDrag && toolDrag.kind === 'sel'){ selDraft = null; }
+  if (toolDrag && (toolDrag.kind === 'sel' || toolDrag.kind === 'lfill')){ selDraft = null; }
+  gradLine = null;
   toolDrag = null; needCompose();
 }
 function updateBrushCursor(e, sx, sy){
@@ -1554,7 +1768,18 @@ function toolDown(e, sx, sy){
   let t = S.tool;
   if (altDown && ['brush','fill','shape','text'].includes(t)) t = 'picker';
   if (t === 'picker'){ pickColor(p); toolDrag = {kind:'pick'}; return; }
+  if (t === 'fill' && S.fill.mode === 'lazo'){
+    if (!act().visible){ toast('La capa está oculta'); return; }
+    toolDrag = {kind:'lfill'}; selDraft = [[p.x, p.y]]; needRender(); return;
+  }
   if (t === 'fill'){ doFill(p); return; }
+  if (t === 'gradient'){
+    const L = act(); if (!L.visible){ toast('La capa está oculta'); return; }
+    backupLayer(L); C.stroke.getContext('2d').clearRect(0, 0, W, H);
+    ST = {tool:'gradient', layer:L, bb:[0, 0, W, H], set:{}, def:{}, smooth:p, raw:p};
+    live = {kind:'stroke', layer:L, alpha:1, op:L.lockAlpha ? 'source-atop' : 'source-over'};
+    toolDrag = {kind:'grad', a:p}; drawGradient(p, p); return;
+  }
   if (t === 'text'){ openText(p); return; }
   if (t === 'brush' || t === 'eraser' || t === 'smudge' || t === 'blur'){ beginStroke(p, e); if (ST) toolDrag = {kind:'stroke'}; return; }
   if (t === 'shape'){
@@ -1585,6 +1810,8 @@ function toolMove(e, sx, sy){
     (evs.length ? evs : [e]).forEach(ev => addPoint(docPt(ev)));
   } else if (k === 'pick'){ pickColor(docPt(e)); }
   else if (k === 'shape'){ shapeDraw(toolDrag.a, docPt(e), e.shiftKey); }
+  else if (k === 'grad'){ let b = docPt(e); if (e.shiftKey){ const a = toolDrag.a, ang = Math.round(Math.atan2(b.y - a.y, b.x - a.x)/(Math.PI/4))*(Math.PI/4), len = Math.hypot(b.x - a.x, b.y - a.y); b = {x:a.x + Math.cos(ang)*len, y:a.y + Math.sin(ang)*len}; } drawGradient(toolDrag.a, b); }
+  else if (k === 'lfill'){ const p = docPt(e), l = selDraft[selDraft.length - 1]; if (Math.hypot(l[0] - p.x, l[1] - p.y)*V.z > 3) selDraft.push([p.x, p.y]); needRender(); }
   else if (k === 'sel'){
     const p = docPt(e);
     if (S.sel.mode === 'rect'){ const a = toolDrag.a; let bx = p.x, by = p.y; if (e.shiftKey && toolDrag.mode === 'new'){ const m = Math.max(Math.abs(bx - a.x), Math.abs(by - a.y)); bx = a.x + Math.sign(bx - a.x || 1)*m; by = a.y + Math.sign(by - a.y || 1)*m; } selDraft = [[a.x, a.y], [bx, a.y], [bx, by], [a.x, by]]; }
@@ -1596,6 +1823,8 @@ function toolUp(e){
   const td = toolDrag, k = td.kind; toolDrag = null;
   if (k === 'stroke'){ endStroke(); }
   else if (k === 'shape'){ endStroke(); }
+  else if (k === 'grad'){ gradLine = null; endStroke(); }
+  else if (k === 'lfill'){ const pts = selDraft; selDraft = null; if (pts && pts.length >= 3) lassoFill(pts); needRender(); }
   else if (k === 'sel'){
     const pts = selDraft; selDraft = null;
     const big = pts && pts.length >= 3 && (() => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); return (Math.max(...xs) - Math.min(...xs))*V.z > 3 || (Math.max(...ys) - Math.min(...ys))*V.z > 3; })();
@@ -1831,7 +2060,13 @@ function renderToolOpts(){
       h += slider('oMix', 'Mezcla de colores', 0, 100, cur().mix ?? bd.mix, pct) + (bd.noPaint ? '' : slider('oWater', 'Agua', 0, 100, cur().water ?? bd.water, pct)) +
         `<p class="hint3">${bd.noPaint ? 'No añade pintura: arrastra sobre dos colores para fundirlos.' : 'Pinta encima de otro color de la misma capa y se mezclan. Con más agua, el trazo se aclara al avanzar.'}</p>`;
     }
-    if (t === 'brush') h += slider('oStab', 'Estabilizador', 0, 10, S.stab, v => v === 0 ? 'No' : v) + `<label class="check"><input type="checkbox" id="oPress" ${S.pressure ? 'checked' : ''}> Usar presión del lápiz</label>`;
+    if (t === 'brush'){
+      h += slider('oStab', 'Estabilizador', 0, 10, S.stab, v => v === 0 ? 'No' : v) + slider('oTaper', 'Afinar al empezar el trazo', 0, 100, S.taperIn, v => v === 0 ? 'No' : pct(v)) +
+        `<label class="check"><input type="checkbox" id="oPress" ${S.pressure ? 'checked' : ''}> Usar presión del lápiz</label>`;
+      if (bd.shape) h += `<p class="hint3">Sello: cada toque deja una forma con tamaño, giro y posición un poco al azar.</p>`;
+      if (bd.tone) h += `<p class="hint3">Trama de cómic: pinta con puntos o rayas. Queda muy bien en una capa recortada encima del dibujo.</p>`;
+      if (bd.rainbow) h += `<p class="hint3">El color va cambiando solo mientras dibujas.</p>`;
+    }
     h += symHTML();
   } else if (t === 'eraser'){
     h += `<div class="brushes" id="oErasers">${ERASERS.map(b => `<button data-e="${b.id}" aria-pressed="${b.id === S.eraserId}"><canvas width="120" height="26" data-prev="${b.id}"></canvas>${b.name}</button>`).join('')}</div>`;
@@ -1842,9 +2077,16 @@ function renderToolOpts(){
     if (t === 'smudge') h += `<p class="hint3">Arrastra para estirar el color. Para fundir colores con suavidad prueba también el pincel «Mezclador».</p>`;
     if (t === 'blur' && !FILTER_OK) h += `<p class="hint" style="color:var(--danger);margin:0">Este navegador no permite desenfocar.</p>`;
   } else if (t === 'fill'){
-    h += slider('oTol', 'Tolerancia', 0, 100, S.fill.tol, pct) + slider('oGrow', 'Expandir', 0, 4, S.fill.grow, px) +
+    h += seg('oFillMode', [['bote','Bote (zona cerrada)'],['lazo','Lazo (dibuja la forma)']], S.fill.mode) +
+      `<div id="oBoteOpts" ${S.fill.mode === 'lazo' ? 'hidden' : ''} style="display:flex;flex-direction:column;gap:10px">` +
+      slider('oTol', 'Tolerancia', 0, 100, S.fill.tol, pct) + slider('oGrow', 'Expandir', 0, 4, S.fill.grow, px) +
       `<div class="lab"><span>Mirar</span></div>` + seg('oRef', [['capa','Solo esta capa'],['lienzo','Todo el dibujo']], S.fill.ref) +
-      `<p style="margin:0;color:var(--muted);font-size:12.5px">Con «Todo el dibujo» puedes pintar en una capa nueva debajo de las líneas.</p>`;
+      `<p style="margin:0;color:var(--muted);font-size:12.5px">Con «Todo el dibujo» puedes pintar en una capa nueva debajo de las líneas.</p></div>` +
+      `<p class="hint3" id="oLazoHint" ${S.fill.mode === 'lazo' ? '' : 'hidden'}>Dibuja el contorno con el dedo o el ratón: al soltar se rellena con el color.</p>`;
+  } else if (t === 'gradient'){
+    h += seg('oGradKind', [['linear','Lineal'],['radial','Circular']], S.grad.kind) +
+      `<div class="lab"><span>Del color elegido…</span></div>` + seg('oGradTo', [['transp','a transparente'],['prev','al color anterior']], S.grad.to) +
+      `<p class="hint3">Arrastra sobre el lienzo desde donde empieza hasta donde acaba. Mayús lo endereza. Si hay selección, se queda dentro.</p>`;
   } else if (t === 'picker'){
     h += `<div class="lab"><span>Tomar el color de</span></div>` + seg('oPick', [['lienzo','Todo el dibujo'],['capa','Solo esta capa']], S.pickRef) +
       `<p style="margin:0;color:var(--muted);font-size:12.5px">Con el pincel, mantén Alt para usar el cuentagotas.</p>`;
@@ -1870,6 +2112,9 @@ function renderToolOpts(){
   bindSlider('oSize', px, v => { cur().size = v; syncQuick(); savePrefs(); });
   bindSlider('oOpac', pct, v => { cur().opacity = v; syncQuick(); savePrefs(); });
   bindSlider('oStab', v => v === 0 ? 'No' : v, v => { S.stab = v; savePrefs(); });
+  bindSlider('oTaper', v => v === 0 ? 'No' : pct(v), v => { S.taperIn = v; savePrefs(); });
+  bindSeg('oFillMode', v => { S.fill.mode = v; $('#oBoteOpts').hidden = v === 'lazo'; $('#oLazoHint').hidden = v !== 'lazo'; });
+  bindSeg('oGradKind', v => S.grad.kind = v); bindSeg('oGradTo', v => S.grad.to = v);
   bindSlider('oHard', pct, v => { S.eraser.hard = v/100; dabCache.clear(); savePrefs(); });
   bindSlider('oMix', pct, v => { cur().mix = v; savePrefs(); });
   bindSlider('oWater', pct, v => { cur().water = v; savePrefs(); });
@@ -1960,6 +2205,7 @@ function renderLayers(){
     </div>`);
   }
   list.innerHTML = rows.join('');
+  renderAnimBar();
   L.forEach(l => l.thumbDirty = true);
   const a = act();
   $('#lOpacity').value = Math.round(a.opacity*100); $('#lOpOut').textContent = Math.round(a.opacity*100) + ' %';
@@ -1975,9 +2221,9 @@ function updateThumbs(force){
   const now = performance.now(); if (!force && now - _thumbT < 400) return; _thumbT = now;
   doc.layers.forEach(l => {
     if (!l.thumbDirty || (ST && ST.layer === l && !force)) return;
-    const c = document.querySelector(`canvas[data-thumb="${l.id}"]`); if (!c) return;
-    const g = c.getContext('2d'); g.clearRect(0, 0, 88, 88);
-    const s = Math.min(88/W, 88/H); g.drawImage(l.canvas, (88 - W*s)/2, (88 - H*s)/2, W*s, H*s);
+    const cs = document.querySelectorAll(`canvas[data-thumb="${l.id}"]`); if (!cs.length) return;
+    const s = Math.min(88/W, 88/H);
+    cs.forEach(c => { const g = c.getContext('2d'); g.clearRect(0, 0, 88, 88); g.drawImage(l.canvas, (88 - W*s)/2, (88 - H*s)/2, W*s, H*s); });
     l.thumbDirty = false;
   });
 }
@@ -2056,9 +2302,14 @@ const ADJ = [['hue','Tono', -180, 180, 0, v => `${v}°`], ['sat','Saturación', 
 let adjVals = {};
 function adjFilter(){ const v = adjVals; return `hue-rotate(${v.hue}deg) saturate(${v.sat}%) brightness(${v.bri}%) contrast(${v.con}%) blur(${v.blur}px)` + ($('#aInvert').checked ? ' invert(1)' : '') + ($('#aGray').checked ? ' grayscale(1)' : '') + ($('#aSepia').checked ? ' sepia(1)' : ''); }
 function openAdjust(){
-  if (!FILTER_OK){ toast('Este navegador no permite ajustes de color. Prueba con Chrome, Edge o Firefox.'); return; }
   if (live) applyTransform();
   const L = act(); if (!L.visible){ toast('La capa está oculta'); return; }
+  $('#aSliders').parentElement.querySelectorAll('#aSliders, .row, #aReset, #aApply').forEach(el => el.hidden = !FILTER_OK);
+  if (!FILTER_OK){
+    // Sin filtros de lienzo (Safari antiguo): solo los filtros de píxeles
+    $('#aWhere').textContent = `Este navegador no permite los ajustes de tono y brillo, pero sí los filtros. Se aplican a «${L.name}».`;
+    openModal('dlgAdjust'); return;
+  }
   adjVals = Object.fromEntries(ADJ.map(a => [a[0], a[4]]));
   $('#aSliders').innerHTML = ADJ.map(([k, l, mn, mx, v, f]) => slider('a_' + k, l, mn, mx, v, f)).join('');
   ADJ.forEach(([k, , , , , f]) => bindSlider('a_' + k, f, v => { adjVals[k] = v; preview(); }));
@@ -2078,6 +2329,56 @@ $('#aApply').addEventListener('click', () => {
   renderLayers(); closeModal('dlgAdjust', true);
 });
 $('#bAdjust').addEventListener('click', openAdjust);
+
+/* ---------- Filtros que cambian los píxeles de la capa ---------- */
+const FILTERS = [['mosaico','Mosaico'],['posterizar','Posterizar'],['ruido','Ruido'],['enfocar','Enfocar'],['lineas','Extraer líneas'],['tenir','Teñir con el color'],['contorno','Contorno con el color'],['resplandor','Resplandor']];
+$('#aFilters').innerHTML = FILTERS.map(([k, n]) => `<button class="btn" data-filter="${k}">${n}</button>`).join('');
+$('#aFilters').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (b) applyFilter(b.dataset.filter); });
+function applyFilter(id){
+  live = null; closeModal('dlgAdjust', true);
+  const L = act(); if (!L.visible){ toast('La capa está oculta'); return; }
+  const src = L.canvas, out = mk(W, H), og = out.getContext('2d', {willReadFrequently:true}), m = Math.min(W, H);
+  if (id === 'mosaico'){
+    const b = Math.max(4, Math.round(m/70)), sm = mk(Math.ceil(W/b), Math.ceil(H/b));
+    sm.getContext('2d').drawImage(src, 0, 0, sm.width, sm.height);
+    og.imageSmoothingEnabled = false; og.drawImage(sm, 0, 0, sm.width*b, sm.height*b);
+  } else if (id === 'resplandor'){
+    og.drawImage(src, 0, 0);
+    if (FILTER_OK){ og.filter = `blur(${Math.max(4, m/80)}px)`; og.globalCompositeOperation = 'lighter'; og.drawImage(src, 0, 0); og.drawImage(src, 0, 0); og.filter = 'none'; og.globalCompositeOperation = 'source-over'; }
+  } else if (id === 'contorno'){
+    const w = Math.max(2, Math.round(m/220)), t = mk(W, H), tg = t.getContext('2d');
+    tg.drawImage(src, 0, 0); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = S.color; tg.fillRect(0, 0, W, H);
+    for (let k = 0; k < 16; k++){ const a = k*Math.PI/8; og.drawImage(t, Math.cos(a)*w, Math.sin(a)*w); }
+    og.drawImage(src, 0, 0);
+  } else {
+    og.drawImage(src, 0, 0);
+    const im = og.getImageData(0, 0, W, H), d = im.data;
+    if (id === 'posterizar'){ const n = 4, s = 255/(n - 1); for (let i = 0; i < d.length; i += 4){ d[i] = Math.round(d[i]/s)*s; d[i+1] = Math.round(d[i+1]/s)*s; d[i+2] = Math.round(d[i+2]/s)*s; } }
+    else if (id === 'ruido'){ for (let i = 0; i < d.length; i += 4){ if (!d[i+3]) continue; const n = (Math.random() - 0.5)*56; d[i] += n; d[i+1] += n; d[i+2] += n; } }
+    else if (id === 'lineas'){
+      for (let i = 0; i < d.length; i += 4){ const lum = 0.3*d[i] + 0.59*d[i+1] + 0.11*d[i+2]; d[i+3] = clamp((255 - lum)*1.5, 0, 255)*(d[i+3]/255); d[i] = d[i+1] = d[i+2] = 20; }
+    } else if (id === 'tenir'){
+      const [r, g, b] = hexToRgb(S.color);
+      for (let i = 0; i < d.length; i += 4){ const t = (0.3*d[i] + 0.59*d[i+1] + 0.11*d[i+2])/255; d[i] = r + (255 - r)*t; d[i+1] = g + (255 - g)*t; d[i+2] = b + (255 - b)*t; }
+    } else if (id === 'enfocar'){
+      const s = new Uint8ClampedArray(d), w4 = W*4;
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++){
+        const i = y*w4 + x*4;
+        for (let c = 0; c < 3; c++) d[i+c] = s[i+c]*5 - s[i+c-4] - s[i+c+4] - s[i+c-w4] - s[i+c+w4];
+      }
+    }
+    og.putImageData(im, 0, 0);
+  }
+  if (sel){
+    // Fuera de la selección se queda como estaba
+    og.globalCompositeOperation = 'destination-in'; og.drawImage(sel.mask, 0, 0);
+    const k = mk(W, H), kg = k.getContext('2d'); kg.drawImage(src, 0, 0); kg.globalCompositeOperation = 'destination-out'; kg.drawImage(sel.mask, 0, 0);
+    og.globalCompositeOperation = 'source-over'; og.drawImage(k, 0, 0);
+  }
+  editLayer(L, g => { g.clearRect(0, 0, W, H); g.drawImage(out, 0, 0); });
+  renderLayers(); needCompose();
+  toast(`Filtro «${FILTERS.find(f => f[0] === id)[1]}» aplicado a «${L.name}»`);
+}
 
 /* ---------- Lienzo: voltear y girar ---------- */
 const INVERSE = {flipH:'flipH', flipV:'flipV', rotCW:'rotCCW', rotCCW:'rotCW'};
@@ -2145,36 +2446,436 @@ function exportCanvas(){
   const transp = EX.fmt === 'png' && $('#eTransp').checked;
   if (!transp){ g.fillStyle = doc.bg || '#ffffff'; g.fillRect(0, 0, c.width, c.height); }
   g.imageSmoothingQuality = 'high';
+  if (S.mode !== '3d'){ compose(true); _compose = true; needRender(); }
   g.drawImage(S.mode === '3d' && three ? three.capture(true) : C.comp, 0, 0, c.width, c.height);
   return c;
 }
-function exportInfo(){ $('#eInfo').textContent = `${Math.round(W*EX.scale)} × ${Math.round(H*EX.scale)} px`; $('#eBgWrap').hidden = EX.fmt !== 'png'; }
+EX.loops = 1;
+const isAnimFmt = () => EX.fmt === 'gif' || EX.fmt === 'video';
+function exportInfo(){
+  const w = Math.round(W*EX.scale), h = Math.round(H*EX.scale);
+  let t = `${w} × ${h} px`;
+  if (isAnimFmt()){ const s = animSource(EX.fmt); if (s) t += ` · ${s.n} fotogramas · ${fx1(s.n/s.fps*(EX.fmt === 'video' ? EX.loops : 1))} s` + (EX.fmt === 'gif' && w*h > 800*800 ? ' · al 50 % el GIF pesa mucho menos' : ''); }
+  $('#eInfo').textContent = t;
+  $('#eBgWrap').hidden = EX.fmt !== 'png';
+  $('#eLoopsWrap').hidden = EX.fmt !== 'video';
+  $('#eShow').hidden = EX.fmt === 'video';
+}
 $('#bExport').addEventListener('click', () => {
   if (live && live.kind === 'float') applyTransform();
+  stopPlay();
+  const can = animAvailable();
+  $('#eFmtGif').hidden = $('#eFmtVid').hidden = !can;
+  if (!can && isAnimFmt()){ EX.fmt = 'png'; $$('#eFmt button').forEach(b => b.setAttribute('aria-pressed', b.dataset.f === 'png')); }
   $('#ePrev').hidden = true; $('#eMsg').textContent = ''; $('#eTransp').checked = !doc.bg; exportInfo(); openModal('dlgExport');
 });
-bindSegEl('#eFmt', v => { EX.fmt = v; exportInfo(); });
+bindSegEl('#eFmt', v => { EX.fmt = v; $('#ePrev').hidden = true; exportInfo(); });
 bindSegEl('#eScale', v => { EX.scale = +v; exportInfo(); });
+bindSegEl('#eLoops', v => { EX.loops = +v; exportInfo(); });
 function bindSegEl(sel, fn){ $(sel).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $(sel).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); fn(b.dataset.f || b.dataset.s || b.dataset.v); }); }
-$('#eShow').addEventListener('click', () => {
+let exporting = false;
+async function exportBlob(){
+  if (isAnimFmt()) return exportAnim(EX.fmt);
+  const c = exportCanvas();
+  return {blob:await new Promise(r => c.toBlob(r, EX.fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.92)), ext:EX.fmt};
+}
+function setExportBusy(on){ exporting = on; ['#eShow', '#eSaveBtn'].forEach(id => $(id).disabled = on); $$('#eFmt button, #eScale button, #eLoops button').forEach(b => b.disabled = on); }
+$('#eShow').addEventListener('click', async () => {
+  if (exporting) return;
+  if (EX.fmt === 'gif'){
+    setExportBusy(true);
+    try { const r = await exportAnim('gif'); if (r){ $('#ePrev').src = URL.createObjectURL(r.blob); $('#ePrev').hidden = false; $('#eMsg').textContent = `GIF de ${fmtMB(r.blob.size)}. Haz clic derecho (o mantén pulsado) y elige «Guardar imagen».`; } }
+    catch (err) { $('#eMsg').textContent = 'No se pudo crear el GIF: ' + ((err && err.message) || err); }
+    finally { setExportBusy(false); }
+    return;
+  }
   const c = exportCanvas(); $('#ePrev').src = c.toDataURL(EX.fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.92); $('#ePrev').hidden = false;
   $('#eMsg').textContent = 'Haz clic derecho (o mantén pulsada) la imagen y elige «Guardar imagen».';
 });
 $('#eSaveBtn').addEventListener('click', async () => {
-  const c = exportCanvas();
-  const blob = await new Promise(r => c.toBlob(r, EX.fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.92));
+  if (exporting) return;
+  setExportBusy(true);
+  let r = null;
+  try { r = await exportBlob(); }
+  catch (err) { $('#eMsg').textContent = ((err && err.message) || 'No se pudo crear el archivo'); setExportBusy(false); return; }
+  setExportBusy(false);
+  if (!r) return;
+  const {blob, ext} = r;
   const name = (doc.name || 'obra').replace(/[\\/:*?"<>|]+/g, '').trim() || 'obra';
+  const showFallback = () => {
+    if (ext === 'png' || ext === 'jpg' || ext === 'gif'){ $('#ePrev').src = URL.createObjectURL(blob); $('#ePrev').hidden = false; $('#eMsg').textContent = 'Haz clic derecho (o mantén pulsada) la imagen y elige «Guardar imagen».'; }
+    else deliverFile(`${name}.${ext}`, blob).then(x => { $('#eMsg').textContent = x === 'saved' ? 'Listo.' : ''; });
+  };
   let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) {}
   if (!dl){
-    if (!IS_APP){ $('#eShow').click(); return; }
-    const r = await deliverFile(`${name}.${EX.fmt}`, blob); $('#eMsg').textContent = r === 'saved' ? 'Listo.' : ''; return;
+    if (!IS_APP){ showFallback(); return; }
+    const x = await deliverFile(`${name}.${ext}`, blob); $('#eMsg').textContent = x === 'saved' ? 'Listo.' : ''; return;
   }
-  try { await dl.save({filename:`${name}.${EX.fmt}`, data:blob}); $('#eMsg').textContent = 'Listo.'; }
+  try { await dl.save({filename:`${name}.${ext}`, data:blob}); $('#eMsg').textContent = 'Listo.'; }
   catch (err) {
     if (err && err.code === 'declined') $('#eMsg').textContent = 'No se guardó.';
-    else { $('#eShow').click(); }
+    else showFallback();
   }
 });
+
+/* =========================================================
+   Animación
+   · 2D (como en las apps de dibujo): cada capa es un fotograma; papel cebolla,
+     fondo y frente fijos opcionales, reproducción y exportar GIF o vídeo.
+   · 3D: poses guardadas y movimiento suave de una a otra.
+   ========================================================= */
+const A = {playing:false, playI:0, timer:0, show3:false};
+const ANIM_DEF = {on:true, fps:8, onion:1, next:false, fondo:false, frente:false, cur:null};
+const animOn = () => !!(doc && doc.anim && doc.anim.on);
+function animFixed(){
+  const L = doc.layers, a = doc.anim, n = L.length;
+  const bg = a.fondo && n > 1 ? L[0] : null;
+  const fg = a.frente && n > (bg ? 2 : 1) ? L[n - 1] : null;
+  return {bg, fg};
+}
+function frames(){ const {bg, fg} = animFixed(); return doc.layers.filter(l => l !== bg && l !== fg); }
+function curFrame(){
+  const fr = frames(), a = act();
+  if (fr.includes(a)){ doc.anim.cur = a.id; return a; }
+  return fr.find(l => l.id === doc.anim.cur) || fr[0] || null;
+}
+function focusFrame(L){ if (!L) return; if (live && live.kind === 'float') applyTransform(); doc.active = doc.layers.indexOf(L); doc.anim.cur = L.id; renderLayers(); needCompose(); }
+function animAvailable(){
+  if (S.mode === '3d') return !!(three && three.anim.count() >= 2);
+  return animOn() && frames().length >= 2;
+}
+// Alto que ocupa la línea de tiempo (para no tapar el dibujo ni el marco 3D)
+function animBarH(){ const b = $('#animBar'); return !b || b.hidden ? 0 : b.offsetHeight + 12; }
+new ResizeObserver(() => { const h = animBarH(); if (h) stage.style.setProperty('--abh', h + 'px'); }).observe($('#animBar'));
+function syncAnimUI(){
+  const on = S.mode === '3d' ? A.show3 : animOn();
+  const was = !$('#animBar').hidden;
+  $('#animBar').hidden = !on; stage.classList.toggle('anim', on);
+  $('#bAnim').setAttribute('aria-pressed', on);
+  renderAnimBar();
+  if (on) stage.style.setProperty('--abh', animBarH() + 'px');
+  if (was !== on){ if (S.mode === '3d'){ if (three) three.resize(); } else if (!V.user) fitView(); }
+}
+$('#bAnim').addEventListener('click', () => {
+  if (!doc) return;
+  stopPlay();
+  if (S.mode === '3d'){
+    A.show3 = !A.show3; syncAnimUI();
+    if (A.show3 && three && !three.anim.count()) toast('Coloca la escena y pulsa «+ Pose». Mueve algo y guarda otra pose. Con ▶ se mueve sola.');
+    return;
+  }
+  if (live && live.kind === 'float') applyTransform();
+  if (textAt) commitText();
+  const first = !doc.anim;
+  if (first) doc.anim = {...ANIM_DEF}; else doc.anim.on = !doc.anim.on;
+  markMeta(); syncAnimUI(); needCompose();
+  if (doc.anim.on) toast(first && doc.layers.length > 1 ? 'Cada capa es ahora un fotograma. Puedes dejar la de abajo como fondo fijo en ⚙.' : 'Modo animación: dibuja, pulsa + para el siguiente fotograma y ▶ para verlo');
+});
+
+/* Reproducción */
+function stopPlay(){
+  if (A.playing){ clearInterval(A.timer); A.playing = false; if (doc && S.mode === '2d') needCompose(); renderAnimBar(); }
+  if (three && three.anim.playing()){ three.anim.stop(); renderAnimBar(); }
+}
+function play(){
+  if (A.playing || (three && three.anim.playing())){ stopPlay(); return; }
+  if (S.mode === '3d'){
+    if (!three || three.anim.count() < 2){ toast('Guarda al menos dos poses para ver el movimiento'); return; }
+    three.anim.play(); renderAnimBar(); return;
+  }
+  const fr = frames();
+  if (fr.length < 2){ toast('Añade otro fotograma con + para ver la animación'); return; }
+  if (live && live.kind === 'float') applyTransform();
+  if (textAt) commitText();
+  if (ST) cancelStroke();
+  A.playing = true; A.playI = Math.max(0, fr.indexOf(curFrame()));
+  A.timer = setInterval(() => {
+    if (!doc || !animOn()){ stopPlay(); return; }
+    const n = frames().length; A.playI = (A.playI + 1) % n; needCompose();
+    $$('#abFrames .abf').forEach((b, i) => b.classList.toggle('play', i === A.playI));
+  }, 1000/doc.anim.fps);
+  needCompose(); renderAnimBar();
+}
+// Tocar el dibujo o la escena mientras se reproduce la para
+stage.addEventListener('pointerdown', e => {
+  if (!(A.playing || (three && three.anim.playing()))) return;
+  if (e.target === view || e.target === ui || e.target === $('#c3')){ e.stopImmediatePropagation(); e.preventDefault(); stopPlay(); }
+}, true);
+
+/* Línea de tiempo */
+function renderAnimBar(){
+  const bar = $('#animBar'); if (!bar || bar.hidden || !doc) return;
+  const playing = A.playing || (three && three.anim.playing());
+  const playBtn = `<button class="ibtn" data-a="play" title="${playing ? 'Parar' : 'Reproducir'}" aria-label="${playing ? 'Parar' : 'Reproducir'}">${ico(playing ? 'pause' : 'play')}</button>`;
+  if (S.mode === '3d'){
+    const an = three && three.anim, n = an ? an.count() : 0, sel = an ? an.sel() : -1;
+    bar.innerHTML = playBtn +
+      `<div class="abframes" id="abFrames">${n ? Array.from({length:n}, (_, i) => `<button class="abpose ${i === sel ? 'on' : ''}" data-pose="${i}" title="Ir a la pose ${i + 1}">${i + 1}</button>`).join('') : '<span class="abempty">Aún no hay poses. Coloca la escena y pulsa «+ Pose».</span>'}</div>` +
+      `<button class="btn small" data-a="pose" title="Guardar cómo está la escena ahora como pose nueva">${ico('plus')}<span class="bt">Pose</span></button>` +
+      `<button class="ibtn" data-a="cam" title="Guardar la vista de cámara actual en la pose elegida" ${sel < 0 ? 'disabled' : ''}>${ico('camera')}</button>` +
+      `<button class="ibtn" data-a="delpose" title="Borrar la pose elegida" ${sel < 0 ? 'disabled' : ''}>${ico('trash')}</button>` +
+      `<button class="ibtn" data-a="set" title="Ajustes de la animación">${ico('sliders')}</button>`;
+    stage.style.setProperty('--abh', animBarH() + 'px');
+    return;
+  }
+  if (!animOn()) return;
+  const fr = frames(), cf = curFrame(), ci = fr.indexOf(cf);
+  bar.innerHTML = playBtn +
+    `<button class="ibtn" data-a="prev" title="Fotograma anterior (,)" ${ci <= 0 ? 'disabled' : ''}>${ico('left')}</button>` +
+    `<div class="abframes" id="abFrames">${fr.map((l, i) => `<button class="abf ${l === cf ? 'on' : ''} ${A.playing && i === A.playI ? 'play' : ''}" data-id="${l.id}" title="${escapeHTML(l.name)}"><canvas width="88" height="88" data-thumb="${l.id}"></canvas><span>${i + 1}</span></button>`).join('')}</div>` +
+    `<button class="ibtn" data-a="next" title="Fotograma siguiente (.)" ${ci >= fr.length - 1 ? 'disabled' : ''}>${ico('right')}</button>` +
+    `<button class="ibtn" data-a="add" title="Fotograma nuevo vacío">${ico('plus')}</button>` +
+    `<button class="ibtn" data-a="dup" title="Duplicar este fotograma">${ico('copy')}</button>` +
+    `<button class="ibtn" data-a="del" title="Borrar este fotograma" ${fr.length <= 1 ? 'disabled' : ''}>${ico('trash')}</button>` +
+    `<button class="ibtn" data-a="onion" title="Papel cebolla: ver el fotograma anterior en transparente" aria-pressed="${doc.anim.onion > 0}">${ico('onion')}</button>` +
+    `<span class="abtxt">${ci + 1}/${fr.length}<br>${doc.anim.fps} fps</span>` +
+    `<button class="ibtn" data-a="set" title="Velocidad, papel cebolla y fondo fijo">${ico('sliders')}</button>`;
+  const on = bar.querySelector('.abf.on'); if (on) on.scrollIntoView({block:'nearest', inline:'nearest'});
+  fr.forEach(l => l.thumbDirty = true); updateThumbs(true);
+  stage.style.setProperty('--abh', animBarH() + 'px');
+}
+function addFrame(dup){
+  const cf = curFrame(); if (!cf || layerFull()) return;
+  if (live && live.kind === 'float') applyTransform();
+  const L = newLayer(`Fotograma ${frames().length + 1}`);
+  if (dup){ L.ctx.drawImage(cf.canvas, 0, 0); Object.assign(L, {opacity:cf.opacity, blend:cf.blend}); }
+  const i = doc.layers.indexOf(cf) + 1;
+  insertLayerObj(L, i); pushHist({t:'add', layer:L, index:i}); markLayerDirty(L);
+  doc.anim.cur = L.id; after();
+}
+function delFrame(){
+  const fr = frames(), cf = curFrame();
+  if (fr.length <= 1){ toast('Hace falta al menos un fotograma'); return; }
+  const i = doc.layers.indexOf(cf), ni = fr.indexOf(cf);
+  removeLayerObj(cf); pushHist({t:'del', layer:cf, index:i});
+  const nf = frames()[Math.max(0, ni - 1)]; if (nf){ doc.active = doc.layers.indexOf(nf); doc.anim.cur = nf.id; }
+  after();
+}
+function stepFrame(d){ const fr = frames(), i = fr.indexOf(curFrame()); const n = fr[clamp(i + d, 0, fr.length - 1)]; if (n && n !== fr[i]) focusFrame(n); }
+$('#animBar').addEventListener('click', e => {
+  if (!doc) return;
+  const f = e.target.closest('.abf'), p = e.target.closest('[data-pose]'), b = e.target.closest('[data-a]');
+  if (f){ stopPlay(); focusFrame(doc.layers.find(l => l.id === f.dataset.id)); return; }
+  if (p){ stopPlay(); if (three) three.anim.go(+p.dataset.pose); renderAnimBar(); return; }
+  if (!b) return;
+  const a = b.dataset.a;
+  if (a === 'play'){ play(); return; }
+  if (a === 'set'){ openAnimSettings(); return; }
+  stopPlay();
+  if (S.mode === '3d'){
+    if (!three) return;
+    if (a === 'pose'){ three.anim.add(); toast(`Pose ${three.anim.sel() + 1} guardada. Mueve algo y guarda otra.`); }
+    else if (a === 'cam'){ three.anim.cam(); toast('Vista de cámara guardada en esta pose'); }
+    else if (a === 'delpose') three.anim.del();
+    renderAnimBar(); return;
+  }
+  if (a === 'add') addFrame(false);
+  else if (a === 'dup') addFrame(true);
+  else if (a === 'del') delFrame();
+  else if (a === 'prev') stepFrame(-1);
+  else if (a === 'next') stepFrame(1);
+  else if (a === 'onion'){ doc.anim.onion = doc.anim.onion > 0 ? 0 : 1; markMeta(); renderAnimBar(); needCompose(); }
+});
+
+/* Ajustes de la animación */
+function openAnimSettings(){
+  stopPlay();
+  const body = $('#dzBody');
+  if (S.mode === '3d'){
+    const st = three.anim.settings();
+    body.innerHTML = `<p class="hint3">Guarda poses: cómo está la escena en cada momento. Al reproducir, los objetos (y la cámara) se mueven solos de una pose a la siguiente. Si eliges una pose y mueves un objeto, la pose se actualiza.</p>` +
+      slider('dzDur', 'Tiempo entre poses', 2, 50, Math.round(st.dur*10), v => `${fx1(v/10)} s`) +
+      `<label class="check"><input type="checkbox" id="dzCam" ${st.cam ? 'checked' : ''}> Mover también la cámara</label>` +
+      `<label class="check"><input type="checkbox" id="dzEase" ${st.ease ? 'checked' : ''}> Arrancar y frenar suave</label>` +
+      `<p class="hint3" id="dzInfo"></p>`;
+    const info = () => { const n = three.anim.count(); $('#dzInfo').textContent = n ? `${n} ${n === 1 ? 'pose' : 'poses'} · ${fx1(three.anim.total())} s de animación` : 'Aún no hay poses.'; };
+    bindSlider('dzDur', v => `${fx1(v/10)} s`, v => { three.anim.set({dur:v/10}); info(); });
+    $('#dzCam').onchange = e => three.anim.set({cam:e.target.checked});
+    $('#dzEase').onchange = e => three.anim.set({ease:e.target.checked});
+    info();
+  } else {
+    const a = doc.anim;
+    body.innerHTML = slider('dzFps', 'Velocidad (fotogramas por segundo)', 1, 24, a.fps, v => `${v} fps`) +
+      `<div class="lab"><span>Papel cebolla (fotogramas anteriores en rojo)</span></div>` + seg('dzOnion', [[0, 'No'], [1, '1'], [2, '2'], [3, '3']], a.onion) +
+      `<label class="check"><input type="checkbox" id="dzNext" ${a.next ? 'checked' : ''}> Ver también el siguiente (en azul)</label>` +
+      `<label class="check"><input type="checkbox" id="dzFondo" ${a.fondo ? 'checked' : ''}> La capa de más abajo es un fondo fijo (sale en todos)</label>` +
+      `<label class="check"><input type="checkbox" id="dzFrente" ${a.frente ? 'checked' : ''}> La capa de más arriba es fija por delante</label>` +
+      `<p class="hint3" id="dzInfo"></p>`;
+    const info = () => { const n = frames().length; $('#dzInfo').textContent = `${n} ${n === 1 ? 'fotograma' : 'fotogramas'} · ${fx1(n/a.fps)} s. Cada capa es un fotograma; en el panel de capas puedes ordenarlas.`; };
+    const ch = () => { markMeta(); renderLayers(); needCompose(); info(); };
+    bindSlider('dzFps', v => `${v} fps`, v => { a.fps = v; markMeta(); renderAnimBar(); info(); });
+    bindSeg('dzOnion', v => { a.onion = +v; ch(); });
+    $('#dzNext').onchange = e => { a.next = e.target.checked; ch(); };
+    $('#dzFondo').onchange = e => { a.fondo = e.target.checked; ch(); };
+    $('#dzFrente').onchange = e => { a.frente = e.target.checked; ch(); };
+    info();
+  }
+  openModal('dlgAnim');
+}
+$('#dzOff').addEventListener('click', () => {
+  closeModal('dlgAnim', true); stopPlay();
+  if (S.mode === '3d') A.show3 = false;
+  else if (doc && doc.anim){ doc.anim.on = false; markMeta(); needCompose(); }
+  syncAnimUI();
+});
+
+/* Fuentes de fotogramas para exportar */
+function animSource(fmt){
+  if (S.mode === '3d'){
+    if (!three || three.anim.count() < 2) return null;
+    const fps = fmt === 'gif' ? 12 : 24, n = Math.max(2, Math.round(three.anim.total()*fps) + 1);
+    return {n, fps, begin:() => three.anim.beginExport(), render:i => three.anim.renderAt(i/fps), end:() => three.anim.endExport()};
+  }
+  if (!animOn()) return null;
+  const fr = frames(); if (fr.length < 2) return null;
+  const out = mk(W, H), g = out.getContext('2d');
+  return {n:fr.length, fps:doc.anim.fps, begin:() => {}, end:() => { _compose = true; needRender(); },
+    render:i => {
+      const fx = animFixed();
+      g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+      g.fillStyle = doc.bg || '#ffffff'; g.fillRect(0, 0, W, H);
+      composeLayers(g, [fx.bg, fr[i], fx.fg].filter(Boolean));
+      return out;
+    }};
+}
+const nextTick = () => new Promise(r => setTimeout(r, 0));
+async function exportAnim(fmt){
+  const src = animSource(fmt);
+  if (!src){ $('#eMsg').textContent = 'Hacen falta al menos dos fotogramas (o dos poses en 3D).'; return null; }
+  const w = Math.max(1, Math.round(W*EX.scale)), h = Math.max(1, Math.round(H*EX.scale));
+  const out = mk(w, h), og = out.getContext('2d', {willReadFrequently:true}); og.imageSmoothingQuality = 'high';
+  const drawI = i => { og.drawImage(src.render(i), 0, 0, w, h); };
+  const msg = t => { $('#eMsg').textContent = t; };
+  src.begin();
+  try {
+    if (fmt === 'gif'){
+      const step = Math.max(1, Math.ceil(src.n/24)), samples = [];
+      msg('Preparando los colores…'); await nextTick();
+      for (let i = 0; i < src.n; i += step){ drawI(i); samples.push(og.getImageData(0, 0, w, h).data); }
+      const gif = gifWriter(w, h, gifPalette(samples, 256)); samples.length = 0;
+      const delay = Math.max(2, Math.round(100/src.fps));
+      for (let i = 0; i < src.n; i++){
+        msg(`Creando el GIF… ${i + 1} de ${src.n}`); await nextTick();
+        drawI(i); gif.frame(og.getImageData(0, 0, w, h).data, delay);
+      }
+      msg('');
+      return {blob:gif.end(), ext:'gif'};
+    }
+    const r = await recordVideo(out, drawI, src.n, src.fps, EX.loops, (k, n) => msg(`Grabando el vídeo… ${Math.round(k/n*100)} %`));
+    msg('');
+    return r;
+  } finally { src.end(); }
+}
+
+/* Vídeo: se graba en tiempo real con MediaRecorder (MP4 si el navegador sabe, si no WebM) */
+async function recordVideo(canvas, drawI, n, fps, loops, onProg){
+  const types = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const type = window.MediaRecorder && canvas.captureStream ? types.find(t => MediaRecorder.isTypeSupported(t)) : null;
+  if (!type) throw new Error('Este navegador no puede grabar vídeo. Prueba con GIF animado.');
+  drawI(0);
+  const stream = canvas.captureStream(fps);
+  const rec = new MediaRecorder(stream, {mimeType:type, videoBitsPerSecond:Math.min(16e6, Math.max(2e6, canvas.width*canvas.height*fps*0.15))});
+  const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => { rec.onstop = r; });
+  rec.start(250);
+  const dt = 1000/fps, t0 = performance.now(), total = n*loops;
+  for (let k = 0; k < total; k++){
+    drawI(k % n); onProg(k + 1, total);
+    const wait = t0 + (k + 1)*dt - performance.now();
+    await new Promise(r => setTimeout(r, Math.max(0, wait)));
+  }
+  drawI((total - 1) % n); await new Promise(r => setTimeout(r, Math.min(dt, 150)));   // así el último fotograma dura lo que le toca
+  rec.stop(); await stopped; stream.getTracks().forEach(t => t.stop());
+  const mp4 = type.startsWith('video/mp4');
+  return {blob:new Blob(chunks, {type:mp4 ? 'video/mp4' : 'video/webm'}), ext:mp4 ? 'mp4' : 'webm'};
+}
+
+/* GIF animado: una paleta común para todos los fotogramas (corte por la mediana) y compresión LZW */
+function gifPalette(samples, maxColors){
+  const hist = new Uint32Array(32768);
+  for (const d of samples){
+    const step = Math.max(1, Math.floor(d.length/4/250000))*4;
+    for (let i = 0; i < d.length; i += step) hist[((d[i] >> 3) << 10) | ((d[i+1] >> 3) << 5) | (d[i+2] >> 3)]++;
+  }
+  const cols = []; for (let k = 0; k < 32768; k++) if (hist[k]) cols.push(k);
+  const ch = (k, c) => c === 0 ? k >> 10 : c === 1 ? (k >> 5) & 31 : k & 31;
+  const mkBox = list => {
+    let cnt = 0; const mn = [31, 31, 31], mx = [0, 0, 0];
+    for (const k of list){ cnt += hist[k]; for (let c = 0; c < 3; c++){ const v = ch(k, c); if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; } }
+    const r = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]], c = r[0] >= r[1] && r[0] >= r[2] ? 0 : r[1] >= r[2] ? 1 : 2;
+    return {list, cnt, c, range:r[c]};
+  };
+  const boxes = cols.length ? [mkBox(cols)] : [];
+  while (boxes.length < maxColors){
+    let bi = -1, best = 0;
+    boxes.forEach((b, i) => { const s = b.range*Math.sqrt(b.cnt); if (b.list.length > 1 && b.range > 0 && s > best){ best = s; bi = i; } });
+    if (bi < 0) break;
+    const b = boxes[bi], c = b.c;
+    b.list.sort((x, y) => ch(x, c) - ch(y, c));
+    let acc = 0, cut = 1; const half = b.cnt/2;
+    for (let i = 0; i < b.list.length - 1; i++){ acc += hist[b.list[i]]; if (acc >= half){ cut = i + 1; break; } cut = i + 1; }
+    boxes.splice(bi, 1, mkBox(b.list.slice(0, cut)), mkBox(b.list.slice(cut)));
+  }
+  const pal = boxes.map(b => {
+    let r = 0, g = 0, bl = 0, n = 0;
+    for (const k of b.list){ const w = hist[k]; r += ((k >> 10) << 3 | 4)*w; g += (((k >> 5) & 31) << 3 | 4)*w; bl += ((k & 31) << 3 | 4)*w; n += w; }
+    return [Math.round(r/n), Math.round(g/n), Math.round(bl/n)];
+  });
+  if (!pal.length) pal.push([255, 255, 255]);
+  return pal;
+}
+function gifWriter(w, h, pal){
+  const parts = [], ncol = 256;
+  const u8 = a => new Uint8Array(a);
+  parts.push(u8([71, 73, 70, 56, 57, 97, w & 255, w >> 8, h & 255, h >> 8, 0xF7, 0, 0]));
+  const pt = new Uint8Array(ncol*3); pal.forEach((c, i) => { pt[i*3] = c[0]; pt[i*3+1] = c[1]; pt[i*3+2] = c[2]; }); parts.push(pt);
+  parts.push(u8([0x21, 0xFF, 0x0B, 78, 69, 84, 83, 67, 65, 80, 69, 50, 46, 48, 3, 1, 0, 0, 0]));   // NETSCAPE2.0: repetir siempre
+  const lut = new Int16Array(32768).fill(-1);
+  const nearest = k => {
+    const r = (k >> 10) << 3 | 4, g = ((k >> 5) & 31) << 3 | 4, b = (k & 31) << 3 | 4;
+    let bi = 0, bd = 1e9;
+    for (let i = 0; i < pal.length; i++){ const p = pal[i], d = (p[0] - r)*(p[0] - r)*3 + (p[1] - g)*(p[1] - g)*4 + (p[2] - b)*(p[2] - b)*2; if (d < bd){ bd = d; bi = i; } }
+    return lut[k] = bi;
+  };
+  const idx = new Uint8Array(w*h);
+  const T = new Int16Array(4096*256), G = new Uint32Array(4096*256); let gen = 0;
+  function lzw(){
+    const minCode = 8, clear = 256, eoi = 257;
+    let size = minCode + 1, next = eoi + 1, cur = 0, bits = 0;
+    let buf = new Uint8Array(Math.max(1024, idx.length >> 1)), bl = 0;
+    const byte = v => { if (bl >= buf.length){ const nb = new Uint8Array(buf.length*2); nb.set(buf); buf = nb; } buf[bl++] = v; };
+    const emit = code => { cur |= code << bits; bits += size; while (bits >= 8){ byte(cur & 255); cur >>>= 8; bits -= 8; } };
+    gen++; emit(clear);
+    let pre = idx[0];
+    for (let i = 1; i < idx.length; i++){
+      const k = idx[i], key = pre*256 + k;
+      if (G[key] === gen){ pre = T[key]; continue; }
+      emit(pre);
+      if (next === 4096){ emit(clear); next = eoi + 1; size = minCode + 1; gen++; }
+      else { if (next >= (1 << size)) size++; T[key] = next++; G[key] = gen; }
+      pre = k;
+    }
+    emit(pre); emit(eoi); if (bits > 0) byte(cur & 255);
+    // en bloques de 255 bytes
+    const out = new Uint8Array(bl + Math.ceil(bl/255) + 2); let o = 0;
+    out[o++] = minCode;
+    for (let i = 0; i < bl; i += 255){ const n = Math.min(255, bl - i); out[o++] = n; out.set(buf.subarray(i, i + n), o); o += n; }
+    out[o++] = 0;
+    return out.subarray(0, o);
+  }
+  return {
+    frame(data, delay){
+      for (let i = 0, j = 0; i < idx.length; i++, j += 4){
+        const k = ((data[j] >> 3) << 10) | ((data[j+1] >> 3) << 5) | (data[j+2] >> 3);
+        const v = lut[k]; idx[i] = v >= 0 ? v : nearest(k);
+      }
+      parts.push(u8([0x21, 0xF9, 4, 4, delay & 255, delay >> 8, 0, 0]));
+      parts.push(u8([0x2C, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0]));
+      parts.push(lzw());
+    },
+    end(){ parts.push(u8([0x3B])); return new Blob(parts, {type:'image/gif'}); }
+  };
+}
 
 /* =========================================================
    3D: escena, trazos en el aire y pintura sobre los objetos
@@ -2197,6 +2898,7 @@ function setMode(m){
   if (m === S.mode) return;
   if (m === '3d' && !THREE_OK){ toast('No se pudo cargar el motor 3D. Revisa la conexión y recarga.'); return; }
   if (m === '3d'){ if (live && live.kind === 'float') applyTransform(); if (textAt) commitText(); if (ST) cancelStroke(); }
+  stopPlay();
   S.mode = m;
   $$('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
   const is3 = m === '3d';
@@ -2209,6 +2911,8 @@ function setMode(m){
     if (!three) three = init3D(pendingScene, paintSource);
     three.resize(); three.applyTool(); three.syncSel();
   } else { resizeView(); if (!V.user) fitView(); needCompose(); }
+  syncAnimUI();
+  if (is3) three.resize(); else if (!V.user) fitView();
   renderTools(); renderToolOpts(); syncQuick(); updateCtxBar(); updateUndoUI();
 }
 $('#modeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
@@ -2324,7 +3028,10 @@ function init3D(saved, source){
   const setXf = (o, t) => { o.position.copy(t.p); o.quaternion.copy(t.q); o.scale.copy(t.s); };
   let xfBefore = null;
   tctrl.addEventListener('mouseDown', () => { if (tctrl.object) xfBefore = xf(tctrl.object); });
-  tctrl.addEventListener('mouseUp', () => { if (tctrl.object && xfBefore){ push3({t:'xf', obj:tctrl.object, before:xfBefore, after:xf(tctrl.object)}); xfBefore = null; } });
+  tctrl.addEventListener('mouseUp', () => {
+    if (tctrl.object && xfBefore){ push3({t:'xf', obj:tctrl.object, before:xfBefore, after:xf(tctrl.object)}); xfBefore = null; }
+    if (AN.sel >= 0 && AN.poses[AN.sel] && !AN.playing){ AN.poses[AN.sel].o = snapPose().o; markScene(); }
+  });
   tctrl.addEventListener('objectChange', () => syncInfo());
   scene.add(tctrl);
 
@@ -2609,8 +3316,8 @@ function init3D(saved, source){
     select(selected);
   }
   function frameRect(){
-    const a = W/H; let fw = V3.w*0.9, fh = fw/a;
-    if (fh > V3.h*0.86){ fh = V3.h*0.86; fw = fh*a; }
+    const a = W/H, ah = V3.h - 2*animBarH(); let fw = V3.w*0.9, fh = fw/a;
+    if (fh > ah*0.86){ fh = Math.max(40, ah*0.86); fw = fh*a; }
     return {x:(V3.w - fw)/2, y:(V3.h - fh)/2, w:fw, h:fh};
   }
   function resize(){
@@ -2755,9 +3462,62 @@ function init3D(saved, source){
         if (u.type === 'modelo' || u.type === 'falta'){ rec.file = u.file; rec.name = u.type === 'falta' ? u.origName : u.name; rec.size = u.size; rec.bmin = u.bmin; }
         const pi = meshesOf(o).map((m, i) => PAINT.has(m) ? i : -1).filter(i => i >= 0); if (pi.length) rec.paints = pi;
         return rec;
-      })
+      }),
+      anim:AN.poses.length ? {poses:AN.poses, dur:AN.dur, cam:AN.cam, ease:AN.ease} : null
     };
   }
+
+  /* Animación: poses guardadas y movimiento suave entre ellas */
+  const AN = {poses:[], dur:1, cam:true, ease:true, sel:-1, playing:false, t0:0, saved:null};
+  function snapPose(){
+    const o = {};
+    objects.forEach(x => { o[x.userData.oid] = [x.position.toArray().map(r4), x.quaternion.toArray().map(r4), x.scale.toArray().map(r4)]; });
+    return {o, cam:{p:camera.position.toArray().map(r4), t:controls.target.toArray().map(r4)}};
+  }
+  const _v = new THREE.Vector3(), _q = new THREE.Quaternion();
+  const animTotal = () => Math.max(0, AN.poses.length - 1)*AN.dur;
+  function poseAt(t){
+    const P = AN.poses; if (!P.length) return;
+    t = clamp(t, 0, animTotal());
+    const i = P.length < 2 ? 0 : Math.min(P.length - 2, Math.floor(t/AN.dur));
+    let k = P.length < 2 ? 0 : clamp((t - i*AN.dur)/AN.dur, 0, 1);
+    if (AN.ease) k = k*k*(3 - 2*k);
+    const a = P[i], b = P[Math.min(i + 1, P.length - 1)];
+    objects.forEach(o => {
+      const id = o.userData.oid, X = a.o[id] || b.o[id], Y = b.o[id] || a.o[id]; if (!X) return;
+      o.position.fromArray(X[0]).lerp(_v.fromArray(Y[0]), k);
+      o.quaternion.fromArray(X[1]).slerp(_q.fromArray(Y[1]), k);
+      o.scale.fromArray(X[2]).lerp(_v.fromArray(Y[2]), k);
+    });
+    if (AN.cam && a.cam && b.cam){
+      camera.position.fromArray(a.cam.p).lerp(_v.fromArray(b.cam.p), k);
+      controls.target.fromArray(a.cam.t).lerp(_v.fromArray(b.cam.t), k);
+      camera.lookAt(controls.target);
+    }
+  }
+  function applySnap(s){
+    objects.forEach(o => { const X = s.o[o.userData.oid]; if (!X) return; o.position.fromArray(X[0]); o.quaternion.fromArray(X[1]); o.scale.fromArray(X[2]); });
+    camera.position.fromArray(s.cam.p); controls.target.fromArray(s.cam.t); camera.lookAt(controls.target); controls.update();
+  }
+  const anim = {
+    count:() => AN.poses.length, sel:() => AN.sel, total:animTotal, playing:() => AN.playing,
+    settings:() => ({dur:AN.dur, cam:AN.cam, ease:AN.ease}),
+    set(o){ Object.assign(AN, o); markScene(); },
+    add(){ AN.poses.splice(AN.sel + 1, 0, snapPose()); AN.sel++; markScene(); },
+    cam(){ const p = AN.poses[AN.sel]; if (!p) return; p.cam = snapPose().cam; markScene(); },
+    del(){ if (AN.sel < 0) return; AN.poses.splice(AN.sel, 1); AN.sel = Math.min(AN.sel, AN.poses.length - 1); if (AN.sel >= 0) anim.go(AN.sel); markScene(); },
+    go(i){
+      const p = AN.poses[i]; if (!p) return; AN.sel = i; camAnim = null;
+      objects.forEach(o => { const X = p.o[o.userData.oid]; if (!X) return; o.position.fromArray(X[0]); o.quaternion.fromArray(X[1]); o.scale.fromArray(X[2]); });
+      if (AN.cam && p.cam){ camera.position.fromArray(p.cam.p); controls.target.fromArray(p.cam.t); controls.update(); }
+      syncSel();
+    },
+    play(){ if (AN.poses.length < 2) return; select(null); camAnim = null; AN.playing = true; AN.t0 = performance.now(); },
+    stop(){ if (!AN.playing) return; AN.playing = false; if (AN.sel >= 0) anim.go(AN.sel); else anim.go(0); },
+    beginExport(){ anim.stop(); AN.saved = snapPose(); select(null); },
+    renderAt(t){ poseAt(t); return capture(false); },
+    endExport(){ if (AN.saved){ applySnap(AN.saved); AN.saved = null; } syncSel(); }
+  };
   function defaultScene(){
     const fig = makeBlock('figura', '#e9d6c4', 'mate'); sitOnGround(fig, -0.9, 0);
     const cube = makeBlock('cubo', '#cf336b', 'mate'); sitOnGround(cube, 0.7, 0.3);
@@ -2797,8 +3557,13 @@ function init3D(saved, source){
     });
     if (data.cam){ camera.position.fromArray(data.cam.p); controls.target.fromArray(data.cam.t); controls.update(); }
     if (data.luz != null){ S.light3 = data.luz; setSun(S.light3); }
+    if (data.anim && Array.isArray(data.anim.poses)){
+      Object.assign(AN, {poses:data.anim.poses.filter(p => p && p.o), dur:+data.anim.dur || 1, cam:data.anim.cam !== false, ease:data.anim.ease !== false});
+      AN.sel = AN.poses.length ? 0 : -1;
+    }
   }
   function loadScene(data, src){
+    Object.assign(AN, {poses:[], sel:-1, playing:false, saved:null, dur:1, cam:true, ease:true});
     select(null); cancelDraw();
     removeObjs(objects.slice()); U.length = 0; R.length = 0;
     restoreScene(data, src); updateUndoUI();
@@ -2808,7 +3573,15 @@ function init3D(saved, source){
   (function loop(){
     requestAnimationFrame(loop);
     if (S.mode !== '3d' || $('#editor').hidden) return;
-    stepCam(performance.now());
+    const now = performance.now();
+    if (AN.playing){
+      const T = animTotal(), t = (now - AN.t0)/1000;
+      if (t > T + 0.5) AN.t0 = now;   // pausa corta al final y vuelve a empezar
+      poseAt(Math.min(t, T));
+      const i = Math.min(AN.poses.length - 1, Math.round(Math.min(t, T)/AN.dur));
+      $$('#abFrames .abpose').forEach((b, j) => b.classList.toggle('play', j === i));
+    }
+    stepCam(now);
     controls.update();
     paintDirty.forEach(m => refreshPaint(m)); paintDirty.clear();
     if (selBox.visible && selected) meshBox(selected, selBox3);
@@ -2817,7 +3590,7 @@ function init3D(saved, source){
 
   return {
     resize, applyTool, syncSel, colorSelected, materialSelected, addBlock, importModel, setView, setSnap, setSun, positionPlane,
-    undo, redo, del, dup, capture, serialize, loadScene, paintCanvas, paintKeys,
+    undo, redo, del, dup, capture, serialize, loadScene, paintCanvas, paintKeys, anim,
     deselect:() => select(null), canUndo:() => U.length > 0, canRedo:() => R.length > 0, busy:() => !!(stroke || PS || tctrl.dragging)
   };
 }
@@ -2857,6 +3630,7 @@ document.addEventListener('keydown', e => {
   if (k === '+' || k === '='){ zoomAt(V.w/2, V.h/2, 1.25); return; }
   if (k === '-'){ zoomAt(V.w/2, V.h/2, 0.8); return; }
   if (k === 'x'){ $('#bFlipView').click(); return; }
+  if (animOn() && (k === ',' || k === '.')){ stopPlay(); stepFrame(k === '.' ? 1 : -1); return; }
   const t = TOOLS.find(x => x.key && x.key.toLowerCase() === k); if (t) setTool(t.id);
 });
 $('#bUndo').addEventListener('click', undo);
@@ -2921,7 +3695,7 @@ const hasDirty = () => SV.dirty.size > 0 || SV.meta || SV.scene3 || SV.p3.size >
 const toBlob = c => new Promise(r => c.toBlob(r, 'image/png'));
 const blobToDataURL = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsDataURL(b); });
 function thumbDataURL(){
-  if (_compose){ compose(); _compose = false; }
+  compose(true); _compose = true; needRender();
   const s = Math.min(1, 320/Math.max(W, H)), c = mk(Math.round(W*s), Math.round(H*s)), g = c.getContext('2d');
   if (doc.bg){ g.fillStyle = doc.bg; g.fillRect(0, 0, c.width, c.height); }
   g.drawImage(C.comp, 0, 0, c.width, c.height);
@@ -2930,7 +3704,7 @@ function thumbDataURL(){
 }
 function buildMeta(now){
   return {tipo:'obra', id:doc.id, nombre:doc.name, w:W, h:H, bg:doc.bg, creada:doc.created, actualizada:now, activa:doc.active,
-    escena:SV.srev || null, p3:SV.prevs, tiene3d:!!(SV.srev || pendingScene || three),
+    escena:SV.srev || null, p3:SV.prevs, tiene3d:!!(SV.srev || pendingScene || three), anim:doc.anim || null,
     capas:doc.layers.map(l => ({id:l.id, nombre:l.name, opacidad:l.opacity, modo:l.blend, visible:l.visible, clip:l.clip, bloqueo:l.lockAlpha, ...(SV.revs[l.id] ? {rev:SV.revs[l.id].rev, n:SV.revs[l.id].n} : {})}))};
 }
 async function saveNow(){
@@ -3084,7 +3858,7 @@ async function openWork(id){
   $('#gGrid').style.opacity = .5;
   const m = w.meta;
   W = m.w; H = m.h;
-  const d = {id:m.id, name:m.nombre || 'Sin título', w:m.w, h:m.h, bg:m.bg === undefined ? '#ffffff' : m.bg, created:m.creada || Date.now(), layers:[], active:m.activa || 0};
+  const d = {id:m.id, name:m.nombre || 'Sin título', w:m.w, h:m.h, bg:m.bg === undefined ? '#ffffff' : m.bg, created:m.creada || Date.now(), layers:[], active:m.activa || 0, anim:m.anim ? {...ANIM_DEF, ...m.anim} : null};
   SV.revs = {}; SV.known = new Set(); SV.dirty.clear(); SV.meta = false;
   const cm = w.cloudMeta || (w.src === 'cloud' ? m : null);
   if (cm) (cm.capas || []).forEach(c => { if (c.rev) SV.revs[c.id] = {rev:c.rev, n:c.n}; });
@@ -3166,6 +3940,7 @@ function showEditor(){ $('#gallery').hidden = true; $('#editor').hidden = false;
 $('#bBack').addEventListener('click', async () => {
   if (live && live.kind === 'float') applyTransform();
   if (textAt) commitText();
+  stopPlay();
   if (hasDirty() || SV.saving){ await saveNow(); let n = 0; while (SV.saving && n++ < 100) await new Promise(r => setTimeout(r, 100)); }
   doc = null; $('#editor').hidden = true; $('#gallery').hidden = false;
   renderGallery();
@@ -3353,6 +4128,7 @@ async function initApp(){
 /* ---------- Arranque ---------- */
 $('#bBack').innerHTML = ico('back'); $('#bUndo').innerHTML = ico('undo'); $('#bRedo').innerHTML = ico('redo');
 $('#bFlipView').innerHTML = ico('flip'); $('#bRotReset').innerHTML = ico('rotate');
+$('#bAnim').innerHTML = ico('film') + '<span class="bt">Animar</span>';
 $('#bAdjust').innerHTML = ico('sliders') + '<span class="bt">Ajustes</span>'; $('#bCanvasMenu').innerHTML = ico('rotate') + '<span class="bt">Lienzo</span>';
 $('#lAdd').innerHTML = ico('plus'); $('#lDup').innerHTML = ico('copy'); $('#lUp').innerHTML = ico('up'); $('#lDown').innerHTML = ico('down');
 $('#lMerge').innerHTML = ico('merge'); $('#lImport').innerHTML = ico('image'); $('#lDel').innerHTML = ico('trash');

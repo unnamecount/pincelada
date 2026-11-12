@@ -1,9 +1,10 @@
 {
-  "version": "1.0",
-  "fecha": "2026-11-11",
+  "version": "1.1",
+  "fecha": "2026-11-12",
   "notas": [
-    "Pincelada ya se puede instalar y se actualiza sola",
-    "Copia de seguridad de todas tus obras en un archivo",
-    "Exportar imágenes a la galería o a archivos"
+    "Animación: dibuja fotograma a fotograma con papel cebolla y guárdala como GIF o vídeo",
+    "Animación 3D: guarda poses y la escena se mueve sola de una a otra",
+    "30 pinceles nuevos: sellos de estrellas, corazones, flores, hierba, tramas de cómic, arcoíris…",
+    "Degradado, relleno con lazo y 8 filtros nuevos"
   ]
 }
