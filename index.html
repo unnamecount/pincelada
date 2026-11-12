@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pincelada">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<script>window.PINCELADA_VERSION = "1.1";</script>
+<script>window.PINCELADA_VERSION = "1.1.1";</script>
 <title>Pincelada</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1675,9 +1675,21 @@ const pointers = new Map();
 let gesture = null, panning = null, spaceDown = false, altDown = false, tapInfo = null, toolDrag = null;
 function evPoint(e){ const r = view.getBoundingClientRect(); return {sx:e.clientX - r.left, sy:e.clientY - r.top}; }
 function docPt(e){ const {sx, sy} = evPoint(e); const p = s2d(sx, sy); p.p = e.pointerType === 'pen' ? (e.pressure || 0.5) : 1; return p; }
+/* A veces el sistema no avisa de que el lápiz o el ratón se levantó. Si se queda un puntero
+   «fantasma» apuntado, la app creería que hay dos dedos y dejaría de pintar. Aquí se limpian. */
+function resetPointers(){
+  if (gesture){ gesture = null; }
+  panning = null; tapInfo = null;
+  if (toolDrag){ try { toolUp({shiftKey:false, altKey:false}); } catch (err) { abortToolDrag(); } }
+  pointers.clear();
+}
 view.addEventListener('pointerdown', e => {
   if (!doc) return;
   e.preventDefault();
+  if (pointers.size){
+    const stale = e.pointerType !== 'touch' || [...pointers.values()].some(q => q.type !== 'touch');
+    if (stale) resetPointers();
+  }
   try { view.setPointerCapture(e.pointerId); } catch (err) {}
   const {sx, sy} = evPoint(e);
   pointers.set(e.pointerId, {sx, sy, type:e.pointerType});
@@ -1697,6 +1709,8 @@ view.addEventListener('pointermove', e => {
   if (!doc) return;
   const {sx, sy} = evPoint(e);
   const ptr = pointers.get(e.pointerId);
+  // Ratón o lápiz ya sin pulsar pero sin aviso de «levantado»: se trata como si se hubiera levantado
+  if (ptr && e.pointerType !== 'touch' && e.buttons === 0){ upLike(e); return; }
   if (ptr){ if (tapInfo && Math.hypot(ptr.sx - sx, ptr.sy - sy) > 10) tapInfo.moved = true; ptr.sx = sx; ptr.sy = sy; }
   if (gesture){ moveGesture(); return; }
   if (panning){ V.user = true; V.px = panning.px + sx - panning.sx; V.py = panning.py + sy - panning.sy; needRender(); return; }
@@ -1721,6 +1735,9 @@ function upLike(e){
 }
 view.addEventListener('pointerup', upLike);
 view.addEventListener('pointercancel', e => { if (toolDrag && ST) { cancelStroke(); toolDrag = null; } upLike(e); });
+view.addEventListener('lostpointercapture', upLike);
+window.addEventListener('blur', () => { if (pointers.size) resetPointers(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && pointers.size) resetPointers(); });
 view.addEventListener('pointerleave', () => { brushCursor.show = false; needRender(); });
 view.addEventListener('contextmenu', e => e.preventDefault());
 view.addEventListener('wheel', e => {
@@ -1908,7 +1925,7 @@ function setColor(hex, fromHSV){
   });
   el.addEventListener('pointermove', e => { if (mode) apply(e); });
   const end = () => { mode = null; };
-  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); el.addEventListener('lostpointercapture', end);
 })();
 function addRecent(c){ S.recent = [c].concat(S.recent.filter(x => x !== c)).slice(0, 10); renderSwatches(); savePrefs(); }
 
@@ -3269,7 +3286,8 @@ function init3D(saved, source){
   function paintKeys(){ const out = []; objects.forEach(o => meshesOf(o).forEach((m, i) => { if (PAINT.has(m)) out.push(o.userData.oid + ':' + i); })); return out; }
 
   /* Ratón, lápiz y dedos sobre la escena */
-  let down = null, gizmoDown = false, stroke = null, previewLine = null, touches = 0;
+  let down = null, gizmoDown = false, stroke = null, previewLine = null; const touches = new Set();
+  window.addEventListener('blur', () => touches.clear());
   const lineMat = new THREE.LineBasicMaterial({color:0xffffff});
   function updatePreview(){ if (previewLine){ scene.remove(previewLine); previewLine.geometry.dispose(); } lineMat.color.set(S.color); previewLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(stroke.pts), lineMat); scene.add(previewLine); }
   function cancelDraw(){
@@ -3277,7 +3295,7 @@ function init3D(saved, source){
     if (PS){ PS.P.ctx.clearRect(0, 0, PS.P.size, PS.P.size); PS.P.ctx.drawImage(PS.bk, 0, 0); paintDirty.add(PS.m); PS = null; }
   }
   c3.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'touch'){ touches++; if (touches > 1){ cancelDraw(); return; } }
+    if (e.pointerType === 'touch'){ touches.add(e.pointerId); if (touches.size > 1){ cancelDraw(); return; } } else touches.clear();
     down = {x:e.clientX, y:e.clientY}; gizmoDown = tctrl.dragging;
     if (e.button !== 0) return;
     const capture = () => { try { c3.setPointerCapture(e.pointerId); } catch (err) {} };
@@ -3290,7 +3308,7 @@ function init3D(saved, source){
     else if (S.tool3 === 'd3') positionPlane();
   });
   function up(e){
-    if (e.pointerType === 'touch') touches = Math.max(0, touches - 1);
+    touches.delete(e.pointerId);
     if (stroke){
       if (previewLine){ scene.remove(previewLine); previewLine.geometry.dispose(); previewLine = null; }
       const g = buildStroke(stroke.pts, radius(), S.color, S.mat3 === 'original' ? 'mate' : S.mat3);
@@ -3303,7 +3321,7 @@ function init3D(saved, source){
     select(h ? rootOf(h.object) : null);
   }
   c3.addEventListener('pointerup', up);
-  c3.addEventListener('pointercancel', e => { if (e.pointerType === 'touch') touches = Math.max(0, touches - 1); cancelDraw(); });
+  c3.addEventListener('pointercancel', e => { touches.delete(e.pointerId); cancelDraw(); });
 
   function applyTool(){
     const t = S.tool3, freeHand = t === 'd3' || t === 'p3';
