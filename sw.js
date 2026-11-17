@@ -1,5 +1,5 @@
 /* Pincelada — service worker. Lo genera build.py: no lo edites a mano. */
-const VERSION = "1.1.1";
+const VERSION = "1.2";
 const CACHE = 'pincelada-app-' + VERSION;
 const RT = 'pincelada-externos';
 const SHELL = ["./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];

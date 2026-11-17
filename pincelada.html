@@ -49,6 +49,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 input[type=range]{width:100%;accent-color:var(--accent)}
 .check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px}
 .check input{width:16px;height:16px;accent-color:var(--accent);margin:0}
+.estlink{margin-left:auto;margin-right:8px;padding:6px 12px;border-radius:999px;border:1px solid var(--line,rgba(0,0,0,.15));background:var(--surface,#fff);color:var(--ink);font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}.estlink:hover{background:var(--accent);color:#fff}.estlink[hidden]{display:none}
 .savestate{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px;white-space:nowrap;border:0;background:transparent;padding:4px 6px;border-radius:8px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .savestate::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .savestate[data-s="ok"]::before{background:#2f9e5a}
@@ -291,6 +292,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 31c4-1 6-4 6-7 0-2.4 1.8-4.2 4-4.2 2.3 0 4 1.8 4 4.1C22 29 15.5 33.5 8 31z" fill="var(--accent)"/><path d="M19.5 18.6L32 5.5c1-1 2.6.6 1.6 1.6L21.3 21" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round"/></svg>
         <span class="brand-name">Pincelada</span>
       </div>
+      <a class="estlink" id="gEstudio" href="../" hidden title="Volver al Estudio Creativo, donde están todos tus programas">← Estudio</a>
       <span class="savestate" id="gSave" data-s="loading">Cargando…</span>
     </header>
     <div class="ghead">
@@ -3947,6 +3949,7 @@ $('#bBack').addEventListener('click', async () => {
 });
 
 /* ---------- Archivos, copias de seguridad y app instalable ---------- */
+if (window.ESTUDIO_URL){ const a = document.getElementById('gEstudio'); if (a){ a.href = window.ESTUDIO_URL; a.hidden = false; } }
 const APP_VER = window.PINCELADA_VERSION || null;   // solo existe en la app instalable
 const IS_APP = !!APP_VER;
 let _noticeT = 0;

@@ -5,3 +5,4 @@ docs/
 _prueba*
 __pycache__/
 *.pyc
+.claude-router/

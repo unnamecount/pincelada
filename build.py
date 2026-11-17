@@ -33,7 +33,7 @@ HEAD = f'''<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pincelada">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<script>window.PINCELADA_VERSION = {json.dumps(VER)};</script>
+<script>window.PINCELADA_VERSION = {json.dumps(VER)}; window.ESTUDIO_URL = "../";</script>
 '''
 html = HEAD + head_part + '</head>\n<body>\n' + MARK + body_part + '\n</body>\n</html>\n'
 (ROOT / 'index.html').write_text(html, encoding='utf-8')
